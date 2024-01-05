@@ -1,5 +1,7 @@
 # SimpleCA: a simple Go certificate authority
 
+**SimpleCA** is mainly designed to generate valid server certificates for internal purpose.
+
 ## Usage
 
 ```bash
@@ -86,6 +88,8 @@ go get && go mod tidy && go build
 docker build . --file Dockerfile --tag simpleca
 ```
 
+A pre-built image is also available at <https://hub.docker.com/repository/docker/cyd01/simpleca>.
+
 ## How to use command-line mode client
 
 ### How to create a certificate authority
@@ -99,27 +103,27 @@ Create a new certificate authority
 
 Options:
   -C string
-    	Country name (default FR)
+     Country name (default FR)
   -CN string
-    	Common name (default MyCA)
+     Common name (default MyCA)
   -L string
-    	Locality (default Paris)
+     Locality (default Paris)
   -O string
-    	Organization (default MyOrg)
+     Organization (default MyOrg)
   -OU string
-    	Unit (default MyUnit)
+     Unit (default MyUnit)
   -ST string
-    	State (default France)
+     State (default France)
   -days int
-    	Not valid after days (default 3650)
+     Not valid after days (default 3650)
   -key, -k string
-    	Private key file (default -)
+     Private key file (default -)
   -out, -c string
-    	Output file (- for standard output) (default -)
+     Output file (- for standard output) (default -)
   -passphrase string
-    	Private key passphrase
+     Private key passphrase
   -size, -s int
-    	Private key size (default 2048)
+     Private key size (default 2048)
 ```
 
 Example:
@@ -139,14 +143,14 @@ Create a new private key
 
 Options:
   -out string
-    	Output file (- for standard output) (default -)
+     Output file (- for standard output) (default -)
   -passphrase string
-    	Private key passphrase
+     Private key passphrase
   -size int
-    	Private key size (in bits (default 2048)
+     Private key size (in bits (default 2048)
   -type string
-    	Private key type (rsa, or ecdsa) (default rsa)
-``` 
+     Private key type (rsa, or ecdsa) (default rsa)
+```
 
 Example:
 
@@ -165,29 +169,29 @@ Create a new certificate signing request
 
 Options:
   -C string
-    	Country name
+     Country name
   -CN string
-    	Common name
+     Common name
   -L string
-    	Locality
+     Locality
   -O string
-    	Organization
+     Organization
   -OU string
-    	Unit
+     Unit
   -ST string
-    	State
+     State
   -alt-names, -a string
-    	Coma separated alternate names list
+     Coma separated alternate names list
   -ips, -i string
-    	Coma separated IP addresses list
+     Coma separated IP addresses list
   -key, -k string
-    	Server private key file (default -)
+     Server private key file (default -)
   -out string
-    	Output file (- for standard output) (default -)
+     Output file (- for standard output) (default -)
   -passphrase string
-    	Server private key passphrase
+     Server private key passphrase
   -size, -s int
-    	Private key size (default 2048)
+     Private key size (default 2048)
 ```
 
 Example:
@@ -212,15 +216,15 @@ Sign a certificate signing request
 
 Options:
   -ca-cert string
-    	Certificate of the certificate authority (default ca.crt)
+     Certificate of the certificate authority (default ca.crt)
   -ca-key string
-    	Private key of the certificate authority (default ca.key)
+     Private key of the certificate authority (default ca.key)
   -ca-pass string
-    	Private key passphrase of the certificate authority
+     Private key passphrase of the certificate authority
   -days int
-    	Not valid after days (default 3650)
+     Not valid after days (default 3650)
   -out, -c string
-    	Output file (- for standard output) (default -)
+     Output file (- for standard output) (default -)
 ```
 
 Example:
@@ -330,7 +334,7 @@ curl -s http://127.0.0.1/alive
 curl -s http://127.0.0.1/ca/ca.crt
 ```
 
-### How to generate private key
+### How to generate a private key
 
 ```bash
 curl -s http://127.0.0.1/key
@@ -346,18 +350,27 @@ curl -s -H "Content-type: application/octet-stream" http://127.0.0.1/key/pub --d
 
 ### How to generate a certificate signing request from a private key
 
-The private key is in `localhost.key` file.
+The private key is in `localhost.key` file, and your hostname is `localhost`.
 
 ```bash
-curl -s -H "Content-type: application/octet-stream" http://127.0.0.1/csr --data-binary "@localhost.key"
+curl -s -H "Content-type: application/octet-stream" http://127.0.0.1/csr?CN=localhost --data-binary "@localhost.key"
 ```
+
+`CN` stands for **Common name** and is the only mandatory parameter. Others parameters can also be passed:
+
+* `C` for country
+* `ST` for state
+* `L` for location
+* `O` for organization
+* `OU` for organization unit
+* `altnames` for coma separated list of alternate names
 
 ### How to sign a certificate signing request
 
-The certificate signing request is in `localhost.csr` file.
+The certificate signing request is in `localhost.csr` file. The request is for a 90-days valid certificate.
 
 ```bash
-curl -s -H "Content-type: application/octet-stream" -X POST http://127.0.0.1/sign --data-binary "@localhost.csr"
+curl -s -H "Content-type: application/octet-stream" -X POST http://127.0.0.1/sign?days=90 --data-binary "@localhost.csr"
 ```
 
 ### How to get all-in-one (key, csr, certificate)
@@ -389,21 +402,21 @@ curl -s -H 'Accept: application/json' http://127.0.0.1/key
 $ simpleca acme -h
 Usage of simpleca:
   -ca-cert string
-    	Certificate of the certificate authority (default ca.crt)
+     Certificate of the certificate authority (default ca.crt)
   -ca-key string
-    	Private key of the certificate authority (default ca.key)
+     Private key of the certificate authority (default ca.key)
   -ca-pass string
-    	Private key passphrase of the certificate authority
+     Private key passphrase of the certificate authority
   -cert string
-    	Certificate of the ACME web server (if ssl enabled)
+     Certificate of the ACME web server (if ssl enabled)
   -days int
-    	Not valid after days
+     Not valid after days
   -key string
-    	Private key of the ACME web server (if ssl enabled)
+     Private key of the ACME web server (if ssl enabled)
   -port string
-    	Port server (default :8080)
+     Port server (default :8080)
   -ssl
-    	Enable SSL server mode
+     Enable SSL server mode
 ```
 
 > This ACME mock server does not make any verification (no challenge). It always respond a valid certificate on each request.

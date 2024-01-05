@@ -13,16 +13,16 @@ DOCKER_IMAGE_TAG ?= latest
 ## Docker run additional parameters
 DOCKER_RUN_PARAMETERS ?= --publish 1443:443
 
-## Tech-Lab Gitlab URL
+## Gitlab URL
 GITLAB_URL ?=
 
-## Tech-Lab Gitlab access token
+## Gitlab access token
 GITLAB_TOKEN ?=
 
 ## Gitlab destination package
 GITLAB_PACKAGE ?= $(DOCKER_IMAGE)
 
-## Tech-Lab Nexus URL
+## Nexus URL
 NEXUS_URL ?=
 
 ## Nexus credentials user
