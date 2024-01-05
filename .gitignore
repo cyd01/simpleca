@@ -1,0 +1,21 @@
+simpleca
+simpleca-*
+simpleca_*
+simpleca.exe
+simpleca.exe.manifest
+
+*.o
+*.out
+*.syso
+*.key
+*.csr
+*.crt
+*.conf
+.vscode/
+
+# OS specific
+versioninfo.rc 
+main_darwin.go
+main_linux.go
+main_windows.go
+resource.syso

@@ -1,0 +1,1025 @@
+openapi: 3.0.0
+servers:
+  - url: http://127.0.0.1:8080/
+    description: path to the main simpleca API
+info:
+  description: Simple certificate authority web server
+  version: "0.0.1"
+  title: "Simpleca API"
+  contact:
+    email: cyd@piratemind.com
+  license:
+    name: MIT
+    url: 'https://opensource.org/licenses/mit-license.php'
+paths:
+  /alive:
+    get:
+      summary: Alive
+      operationId: alive
+      description: |
+        Alive endpoint
+      responses:
+        '200':
+          description: Alive
+          content:
+            text/plain:
+              schema:
+                type: string
+              examples:
+                keytext:
+                  value: alive
+        '405':
+          description: not a valid method
+  /key:
+    get:
+      summary: Create a private key
+      operationId: generateKey
+      description: |
+        Generate a new private key
+      parameters:
+        - in: query
+          name: size
+          required: false
+          allowEmptyValue: false
+          description: pass an optional size of the private key
+          schema:
+            type: integer
+            format: int32
+            minimum: 1024
+            maximum: 16384
+          example: 2048
+        - in: query
+          name: type
+          required: false
+          allowEmptyValue: false
+          description: type of the private key
+          schema:
+            $ref: '#/components/schemas/KeyType'
+          examples:
+            rsa:
+              value: rsa
+            ecdsa:
+              value: ecdsa
+        - in: query
+          name: passphrase
+          required: false
+          allowEmptyValue: true
+          description: passphrase of the private key
+          schema:
+            type: string
+      responses:
+        '200':
+          description: here is a private key
+          content:
+            text/plain:
+              schema:
+                type: string
+              examples:
+                keytext:
+                  $ref: '#/components/examples/keytext'
+            application/json:
+              schema:
+                type: object
+                items:
+                  $ref: '#/components/schemas/output'
+              examples:
+                keyjson:
+                  $ref: '#/components/examples/keyjson'
+        '400':
+          description: bad input parameter
+          content:
+            text/plain:
+              schema:
+                type: string
+              examples:
+                wrongsize: 
+                  value: Wrong key size
+                keytype:
+                  value: Wrong key type
+                keybig: 
+                  value: Key size too much big
+                keysmall: 
+                  value: Key size not big enough
+        '405':
+          description: not a valid method
+        '500':
+          description: internal server error
+          content:
+            text/plain:
+              schema:
+                type: string
+              examples:
+                generate:
+                  value: Error while generate private key
+  /key/pub:
+    post:
+      summary: Extract the public key from a private key
+      operationId: getKeyPub
+      requestBody:
+        description: The private key to extract public key from
+        required: true
+        content:
+          text/plain:
+            schema:
+              type: string
+            examples:
+              keytext:
+                $ref: '#/components/examples/keyoctet'
+      responses:
+        '200':
+          description: here is the public key
+          content:
+            text/plain:
+              schema:
+                type: string
+              examples:
+                keypubtext:
+                  $ref: '#/components/examples/keypubtext'
+            application/json:
+              schema:
+                type: object
+                items:
+                  $ref: '#/components/schemas/output'
+              examples:
+                keypubjson:
+                  $ref: '#/components/examples/keypubjson'
+        '400':
+          description: bad input parameter
+          content:
+            text/plain:
+              schema:
+                type: string
+              examples:
+                converterror:
+                  value: Unable to convert to private key
+                keytype:
+                  value: Wrong key type
+        '405':
+          description: not a valid method
+        '500':
+          description: internal server error
+          content:
+            text/plain:
+              schema:
+                type: string
+              examples:
+                convert:
+                  value: Unable to convert to public key
+  /csr:
+    post:
+      summary: Generate a certificate signing request from a private key
+      operationId: generateCSR
+      parameters:
+        - in: query
+          name: passphrase
+          required: false
+          allowEmptyValue: true
+          description: passphrase of the private key
+          schema:
+            type: string
+        - in: query
+          name: C
+          required: false
+          allowEmptyValue: false
+          description: Country
+          schema:
+            type: string
+          example: FR
+        - in: query
+          name: ST
+          required: false
+          allowEmptyValue: false
+          description: State
+          schema:
+            type: string
+          example: France
+        - in: query
+          name: L
+          required: false
+          allowEmptyValue: false
+          description: Locality
+          schema:
+            type: string
+          example: Paris
+        - in: query
+          name: O
+          required: false
+          allowEmptyValue: false
+          description: Organization
+          schema:
+            type: string
+          example: MyOrg
+        - in: query
+          name: OU
+          required: false
+          allowEmptyValue: false
+          description: Organization unit
+          schema:
+            type: string
+          example: MyUnit
+        - in: query
+          name: CN
+          required: true
+          allowEmptyValue: false
+          description: Common name
+          schema:
+            type: string
+          example: localhost
+        - in: query
+          name: altnames
+          required: false
+          allowEmptyValue: false
+          description: "Alternate names (coma separated list)"
+          schema:
+            type: string
+          example: localhost
+        - in: query
+          name: ips
+          required: false
+          allowEmptyValue: false
+          description: "IP addresses (coma separated list)"
+          schema:
+            type: string
+          example: 127.0.0.1
+      requestBody:
+        description: The private key
+        required: true
+        content:
+          octet-stream:
+            schema:
+              type: string
+            examples:
+              keyoctet:
+                $ref: '#/components/examples/keyoctet'
+      responses:
+        '200':
+          description: here is the certificate signing request
+          content:
+            text/plain:
+              schema:
+                type: string
+              examples:
+                csrtext:
+                  $ref: '#/components/examples/csrtext'
+            application/json:
+              schema:
+                type: object
+                items:
+                  $ref: '#/components/schemas/output'
+              examples:
+                csrjson:
+                  $ref: '#/components/examples/csrjson'
+        '400':
+          description: bad input parameter
+          content:
+            text/plain:
+              schema:
+                type: string
+              examples:
+                converterror:
+                  value: Unable to convert to private key
+                keytype:
+                  value: Wrong key type
+                wrongcn:
+                  value: Common name can not be empty
+        '405':
+          description: not a valid method
+        '500':
+          description: internal server error
+          content:
+            text/plain:
+              schema: 
+                type: string
+              examples:
+                gen:
+                  value: Error while generate certificate signing request
+  /crt:
+    post:
+      summary: Generate a Key, CSR, certificate all in one
+      operationId: generateCRT
+      parameters:
+        - in: query
+          name: size
+          required: false
+          allowEmptyValue: false
+          description: pass an optional size of the private key
+          schema:
+            type: integer
+            format: int32
+            minimum: 1024
+            maximum: 16384
+          example: 2048
+        - in: query
+          name: type
+          required: false
+          allowEmptyValue: false
+          description: type of the private key
+          schema:
+            $ref: '#/components/schemas/KeyType'
+          examples:
+            rsa:
+              value: rsa
+            ecdsa:
+              value: ecdsa
+        - in: query
+          name: passphrase
+          required: false
+          allowEmptyValue: true
+          description: passphrase of the private key
+          schema:
+            type: string
+        - name: days
+          in: query
+          required: false
+          description: Number of valid days
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+          example: 3650
+        - in: query
+          name: C
+          required: false
+          allowEmptyValue: false
+          description: Country
+          schema:
+            type: string
+          example: FR
+        - in: query
+          name: ST
+          required: false
+          allowEmptyValue: false
+          description: State
+          schema:
+            type: string
+          example: France
+        - in: query
+          name: L
+          required: false
+          allowEmptyValue: false
+          description: Locality
+          schema:
+            type: string
+          example: Paris
+        - in: query
+          name: O
+          required: false
+          allowEmptyValue: false
+          description: Organization
+          schema:
+            type: string
+          example: MyOrg
+        - in: query
+          name: OU
+          required: false
+          allowEmptyValue: false
+          description: Organization unit
+          schema:
+            type: string
+          example: MyUnit
+        - in: query
+          name: CN
+          required: true
+          allowEmptyValue: false
+          description: Common name
+          schema:
+            type: string
+          example: localhost
+        - in: query
+          name: altnames
+          required: false
+          allowEmptyValue: false
+          description: "Alternate names (coma separated list)"
+          schema:
+            type: string
+          example: localhost
+        - in: query
+          name: ips
+          required: false
+          allowEmptyValue: false
+          description: "IP addresses (coma separated list)"
+          schema:
+            type: string
+          example: 127.0.0.1
+      requestBody:
+        description: The private key
+        required: true
+        content:
+          octet-stream:
+            schema:
+              type: string
+            examples:
+              keyoctet:
+                $ref: '#/components/examples/keyoctet'
+      responses:
+        '200':
+          description: here is the key, CSR and certificate
+          content:
+            text/plain:
+              schema:
+                type: string
+              examples:
+                alltext:
+                  $ref: '#/components/examples/alltext'
+            application/json:
+              schema:
+                type: object
+                items:
+                  $ref: '#/components/schemas/output'
+              examples:
+                alljson:
+                  $ref: '#/components/examples/alljson'
+        '400':
+          description: bad input parameter
+          content:
+            text/plain:
+              schema:
+                type: string
+              examples:
+                wrongsize: 
+                  value: Wrong key size
+                keybig: 
+                  value: Key size too much big
+                keysmall: 
+                  value: Key size not big enough
+                wrongcn:
+                  value: Common name can not be empty
+                converterror:
+                  value: Unable to convert to private key
+                keytype:
+                  value: Wrong key type
+        '405':
+          description: not a valid method
+        '500':
+          description: internal server error
+          content:
+            text/plain:
+              schema: 
+                type: string
+              examples:
+                keygen:
+                  value: Error while generate private key
+                keyconv:
+                  value: Can not convert key to block
+                csrgen:
+                  value: Error while generate certificate signing request
+                sign:
+                  value: Can not sign certificate signing request
+  /sign:
+    post:
+      summary: Sign a certificate signing request
+      operationId: sign
+      parameters:
+        - name: days
+          in: query
+          required: false
+          description: Number of valid days
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+          example: 3650
+      requestBody:
+        description: The certificate signing request
+        required: true
+        content:
+          octet-stream:
+            schema:
+              type: string
+            examples:
+              csroctet:
+                $ref: '#/components/examples/csroctet'
+      responses:
+        '200':
+          description: here is the certificate
+          content:
+            text/plain:
+              schema:
+                type: string
+              examples:
+                crttext:
+                  $ref: '#/components/examples/crttext'
+            application/json:
+              schema:
+                type: object
+                items:
+                  $ref: '#/components/schemas/output'
+              examples:
+                crtjson:
+                  $ref: '#/components/examples/crtjson'
+        '400':
+          description: bad input parameter
+          content:
+            text/plain:
+              schema:
+                type: string
+              examples:
+                wrongdays:
+                  value: Wrong number of days
+                bigdays:
+                  value: Number of days too small
+                csrwrong:
+                  value: Can not sign certificate signing request
+        '405':
+          description: not a valid method
+        '500':
+          description: internal server error
+          content:
+            text/plain:
+              schema: 
+                type: string
+              examples:
+                csrread:
+                  value: Unable ro read request
+                csrconv:
+                  value: Unable to convert to certificate signing request
+  /ca/ca.crt:
+    get:
+      summary: Get certificate of the certificate authority
+      operationId: getCaCrt
+      responses:
+        '200':
+          description: here is the certificate
+          content:
+            text/plain:
+              schema:
+                type: string
+              examples:
+                cacrttext:
+                  $ref: '#/components/examples/crttext'
+            application/json:
+              schema:
+                type: object
+                items:
+                  $ref: '#/components/schemas/output'
+              examples:
+                cacrtjson:
+                  $ref: '#/components/examples/cacrtjson'
+        '405':
+          description: not a valid method
+components:
+  schemas:
+    KeyType:
+      type: string
+      nullable: false
+      enum:
+        - rsa
+        - ecdsa
+    output:
+      type: object
+      properties:
+        key: 
+          type: object
+          properties:
+            priv:
+              type: string
+              readOnly: true
+            pub:
+              type: string
+              readOnly: true
+        crt:
+          type: string
+          readOnly: true
+        csr:
+          type: string
+          readOnly: true
+        ca:
+          type: object
+          properties:
+            key:
+              type: string
+            crt:
+              type: string
+  examples:
+    keyoctet:
+      summary: example of private key in octet stream
+      value: |
+        -----BEGIN RSA PRIVATE KEY-----
+        MIIEogIBAAKCAQEAvrczWwufabnJelO1/3tOe7gxAVaH4LHUg3KLq4xtJLvzxZ2g
+        S89gZ8jsBgh7o57CoGT8UM2TT5YivQNpiiCV4VNJr2eUZTS22L/GchQR3wWR/cqd
+        mt9bMG/vHK9CqHgxTsZLf+nABEWDJypgpLRbLJJYLprhZrn566+CQ6c+UbFVaPln
+        wUydzetUW2yd5X91G16DPgLlMZejD05PbdUJhjgF7dj6sU+nnSpvLP69x9gPQNi8
+        4vWohZH5LMNYxftHWfVE9oWTabuJwK8iE2UCnPoK4z6LW10PD5A9GMcLq3EAvVPm
+        R6ZgxJNoY7ldC0b/d2XXLvlmbk8QHDxwak0hiQIDAQABAoIBABZVqBsCenHMQy8j
+        PI4l56QPhxWsB4+l48hdEsRNVr7VkA/VjN8z8wtUeWefeLNJtWtJSE9CM/0/DORr
+        0OFPPZ48vcVf8P4FNWCe3OOhPBKNOXKqVti7TZeXlD4cvEa0hLm/+TmKq2UUqu5c
+        RSMkyASpQtB6bOk14HHchPndTSwNz7PmpQgE0DtvNmKhnTP/effNgo3XbYDvJbd4
+        kd3x+HzSgXnNZaEB5nFfkUC+HI9gqpz/h+e1rZr3sK4r3aIw7Kp+d4azyTkM+IZ6
+        SvZCZO8HsQfCwq65JPntNprGse5d6Z0v02rm/aqWELmb0PUCZX+4tNW8B23SX3zS
+        ic9QVbECgYEA1PpGKhMRlfJixQdF8e2obrpj67H+i9idMRJFz3gjgZERcgrC+MwU
+        Ls2owtoo+c/UlO/2mQn32mrLH1IoDmj2wdjwWp2tOTJ/NX7x90dOG2RQxPhZ+NE+
+        3SEsKoXxBB3ij6Kw670bb0q4l7D5eCj/zJHxU/Ovawh1MrnbVILu4X0CgYEA5T2w
+        pDmo7V2JXc0622l1OqMKDovIu2Y7XaeRaTpPa2EWfZh5l1iOcbrtFr/LNxgX9UYa
+        2Mpt3hfuhZqL9CN+tK/6ipQ9dDz3XXKkvJLfqSqyrV6s2s3Ei/RBTIL7fzqTAxiF
+        RcQRC4HNXN31rUlu+XR5h9puMz07LzsnJnLrvf0CgYBZNwG/TD+YnXFscZCGOHTO
+        9Xs311b2w+WNEcd2ki/lbZxuNj3YNLzbokDoZrS1eK7nOOIG15sgvo2Z8DNhXezH
+        5RVCEDzo8dNB2IyJdjAs30fKSvJ9fUGlJek3YuZEQDSQ0KjmB1B/vUA4IuVNxXbp
+        /dSmwzSfVGqrthk/fJ2OjQKBgD29vryMdw3vGlc0NjzwC03OqZ+/UEIAx85ymjxg
+        IxHFpVwQW/dCN6Mz+DUfVOkyyQkbZ5Gp+6tMgMZlGHqZsL+TggQe5upOnUUC4pGT
+        cT/LqzH8hMutjdkv4QJtaLUcnom/6e0fYIPb4ua3NTsFwyjWkQDg+Ls+K5mN8f5u
+        B0Y1AoGAPhkvKDWW8YeerkKcN3wJbOHibOphmg68feXCvkrrkyoSuDqt39R0ZR7z
+        3lc8uV8uPuZPFRJXdaVerxykXyfer+9zroSUsGMBuLMVviPO80cIZTeCmjZb1egz
+        a17Pd/TCZgT9yjr7OvJOjyCXN3hYNeKK/C1msMgmIxx8lc6agMM=
+        -----END RSA PRIVATE KEY-----
+    keytext:
+      summary: example of private key in plain text
+      value: |
+        -----BEGIN RSA PRIVATE KEY-----
+        MIIEogIBAAKCAQEAvrczWwufabnJelO1/3tOe7gxAVaH4LHUg3KLq4xtJLvzxZ2g
+        S89gZ8jsBgh7o57CoGT8UM2TT5YivQNpiiCV4VNJr2eUZTS22L/GchQR3wWR/cqd
+        mt9bMG/vHK9CqHgxTsZLf+nABEWDJypgpLRbLJJYLprhZrn566+CQ6c+UbFVaPln
+        wUydzetUW2yd5X91G16DPgLlMZejD05PbdUJhjgF7dj6sU+nnSpvLP69x9gPQNi8
+        4vWohZH5LMNYxftHWfVE9oWTabuJwK8iE2UCnPoK4z6LW10PD5A9GMcLq3EAvVPm
+        R6ZgxJNoY7ldC0b/d2XXLvlmbk8QHDxwak0hiQIDAQABAoIBABZVqBsCenHMQy8j
+        PI4l56QPhxWsB4+l48hdEsRNVr7VkA/VjN8z8wtUeWefeLNJtWtJSE9CM/0/DORr
+        0OFPPZ48vcVf8P4FNWCe3OOhPBKNOXKqVti7TZeXlD4cvEa0hLm/+TmKq2UUqu5c
+        RSMkyASpQtB6bOk14HHchPndTSwNz7PmpQgE0DtvNmKhnTP/effNgo3XbYDvJbd4
+        kd3x+HzSgXnNZaEB5nFfkUC+HI9gqpz/h+e1rZr3sK4r3aIw7Kp+d4azyTkM+IZ6
+        SvZCZO8HsQfCwq65JPntNprGse5d6Z0v02rm/aqWELmb0PUCZX+4tNW8B23SX3zS
+        ic9QVbECgYEA1PpGKhMRlfJixQdF8e2obrpj67H+i9idMRJFz3gjgZERcgrC+MwU
+        Ls2owtoo+c/UlO/2mQn32mrLH1IoDmj2wdjwWp2tOTJ/NX7x90dOG2RQxPhZ+NE+
+        3SEsKoXxBB3ij6Kw670bb0q4l7D5eCj/zJHxU/Ovawh1MrnbVILu4X0CgYEA5T2w
+        pDmo7V2JXc0622l1OqMKDovIu2Y7XaeRaTpPa2EWfZh5l1iOcbrtFr/LNxgX9UYa
+        2Mpt3hfuhZqL9CN+tK/6ipQ9dDz3XXKkvJLfqSqyrV6s2s3Ei/RBTIL7fzqTAxiF
+        RcQRC4HNXN31rUlu+XR5h9puMz07LzsnJnLrvf0CgYBZNwG/TD+YnXFscZCGOHTO
+        9Xs311b2w+WNEcd2ki/lbZxuNj3YNLzbokDoZrS1eK7nOOIG15sgvo2Z8DNhXezH
+        5RVCEDzo8dNB2IyJdjAs30fKSvJ9fUGlJek3YuZEQDSQ0KjmB1B/vUA4IuVNxXbp
+        /dSmwzSfVGqrthk/fJ2OjQKBgD29vryMdw3vGlc0NjzwC03OqZ+/UEIAx85ymjxg
+        IxHFpVwQW/dCN6Mz+DUfVOkyyQkbZ5Gp+6tMgMZlGHqZsL+TggQe5upOnUUC4pGT
+        cT/LqzH8hMutjdkv4QJtaLUcnom/6e0fYIPb4ua3NTsFwyjWkQDg+Ls+K5mN8f5u
+        B0Y1AoGAPhkvKDWW8YeerkKcN3wJbOHibOphmg68feXCvkrrkyoSuDqt39R0ZR7z
+        3lc8uV8uPuZPFRJXdaVerxykXyfer+9zroSUsGMBuLMVviPO80cIZTeCmjZb1egz
+        a17Pd/TCZgT9yjr7OvJOjyCXN3hYNeKK/C1msMgmIxx8lc6agMM=
+        -----END RSA PRIVATE KEY-----
+    keyjson:
+      summary: example of private key in json
+      value:
+        key:
+          priv: |
+            -----BEGIN RSA PRIVATE KEY-----
+            MIIEogIBAAKCAQEAvrczWwufabnJelO1/3tOe7gxAVaH4LHUg3KLq4xtJLvzxZ2g
+            S89gZ8jsBgh7o57CoGT8UM2TT5YivQNpiiCV4VNJr2eUZTS22L/GchQR3wWR/cqd
+            mt9bMG/vHK9CqHgxTsZLf+nABEWDJypgpLRbLJJYLprhZrn566+CQ6c+UbFVaPln
+            wUydzetUW2yd5X91G16DPgLlMZejD05PbdUJhjgF7dj6sU+nnSpvLP69x9gPQNi8
+            4vWohZH5LMNYxftHWfVE9oWTabuJwK8iE2UCnPoK4z6LW10PD5A9GMcLq3EAvVPm
+            R6ZgxJNoY7ldC0b/d2XXLvlmbk8QHDxwak0hiQIDAQABAoIBABZVqBsCenHMQy8j
+            PI4l56QPhxWsB4+l48hdEsRNVr7VkA/VjN8z8wtUeWefeLNJtWtJSE9CM/0/DORr
+            0OFPPZ48vcVf8P4FNWCe3OOhPBKNOXKqVti7TZeXlD4cvEa0hLm/+TmKq2UUqu5c
+            RSMkyASpQtB6bOk14HHchPndTSwNz7PmpQgE0DtvNmKhnTP/effNgo3XbYDvJbd4
+            kd3x+HzSgXnNZaEB5nFfkUC+HI9gqpz/h+e1rZr3sK4r3aIw7Kp+d4azyTkM+IZ6
+            SvZCZO8HsQfCwq65JPntNprGse5d6Z0v02rm/aqWELmb0PUCZX+4tNW8B23SX3zS
+            ic9QVbECgYEA1PpGKhMRlfJixQdF8e2obrpj67H+i9idMRJFz3gjgZERcgrC+MwU
+            Ls2owtoo+c/UlO/2mQn32mrLH1IoDmj2wdjwWp2tOTJ/NX7x90dOG2RQxPhZ+NE+
+            3SEsKoXxBB3ij6Kw670bb0q4l7D5eCj/zJHxU/Ovawh1MrnbVILu4X0CgYEA5T2w
+            pDmo7V2JXc0622l1OqMKDovIu2Y7XaeRaTpPa2EWfZh5l1iOcbrtFr/LNxgX9UYa
+            2Mpt3hfuhZqL9CN+tK/6ipQ9dDz3XXKkvJLfqSqyrV6s2s3Ei/RBTIL7fzqTAxiF
+            RcQRC4HNXN31rUlu+XR5h9puMz07LzsnJnLrvf0CgYBZNwG/TD+YnXFscZCGOHTO
+            9Xs311b2w+WNEcd2ki/lbZxuNj3YNLzbokDoZrS1eK7nOOIG15sgvo2Z8DNhXezH
+            5RVCEDzo8dNB2IyJdjAs30fKSvJ9fUGlJek3YuZEQDSQ0KjmB1B/vUA4IuVNxXbp
+            /dSmwzSfVGqrthk/fJ2OjQKBgD29vryMdw3vGlc0NjzwC03OqZ+/UEIAx85ymjxg
+            IxHFpVwQW/dCN6Mz+DUfVOkyyQkbZ5Gp+6tMgMZlGHqZsL+TggQe5upOnUUC4pGT
+            cT/LqzH8hMutjdkv4QJtaLUcnom/6e0fYIPb4ua3NTsFwyjWkQDg+Ls+K5mN8f5u
+            B0Y1AoGAPhkvKDWW8YeerkKcN3wJbOHibOphmg68feXCvkrrkyoSuDqt39R0ZR7z
+            3lc8uV8uPuZPFRJXdaVerxykXyfer+9zroSUsGMBuLMVviPO80cIZTeCmjZb1egz
+            a17Pd/TCZgT9yjr7OvJOjyCXN3hYNeKK/C1msMgmIxx8lc6agMM=
+            -----END RSA PRIVATE KEY-----
+    keypubtext:
+      summary: example of public key in plain text
+      value: |
+        -----BEGIN PUBLIC KEY-----
+        MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDpyQTKrdJeOmtrNVZV/4ndVftN
+        ize34Dum/SC+m1rj+0hPm9u0eNoLFuuiJOQaxxLXB5FnkBSa36xqKTZ8WsBU8PkM
+        1Bh8ewV1O9uE34LiaqwJ3uc1h44vQmO58zt4Uijq4GZdVIDo13i4g1FojV3ncrPA
+        frQMeVf8EQMQ+gJRVwIDAQAB
+        -----END PUBLIC KEY-----
+    keypubjson:
+      summary: example of public key in json
+      value:
+        key:
+          pub: |
+            -----BEGIN PUBLIC KEY-----
+            MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDpyQTKrdJeOmtrNVZV/4ndVftN
+            ize34Dum/SC+m1rj+0hPm9u0eNoLFuuiJOQaxxLXB5FnkBSa36xqKTZ8WsBU8PkM
+            1Bh8ewV1O9uE34LiaqwJ3uc1h44vQmO58zt4Uijq4GZdVIDo13i4g1FojV3ncrPA
+            frQMeVf8EQMQ+gJRVwIDAQAB
+            -----END PUBLIC KEY-----
+    csroctet:
+      summary: example of certificate signing request in octet stream
+      value: |
+        -----BEGIN CERTIFICATE REQUEST-----
+        MIIC9zCCAd8CAQAwYzELMAkGA1UEBhMCRlIxDzANBgNVBAgTBkZyYW5jZTEOMAwG
+        A1UEBxMFUGFyaXMxDjAMBgNVBAoTBU15T3JnMQ8wDQYDVQQLEwZNeVVuaXQxEjAQ
+        BgNVBAMTCWxvY2FsaG9zdDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEB
+        ANCCLXbfA9DRXb4Iq+1ugGjaW20Tcc5/GCYcbVuPjWPgx5ZcKyxhCQndIS05mRAT
+        aNPJlyPUGiry7emx/bckzmg23Ok1ZlbO6SlWrvRlFxR/PzTXK0xLe8uASsMC9J4V
+        O2B1x7oVS7P7E9J2ZKcdqppnsOWCGYMxWv9kpcALFh1s4jumBWcDCephNtF+AtZn
+        BE+lJDDAQtqaiT3tjROOYFVoMShAyxEH3agUuGOI/A0kW5mlhr7rzD9bVVi/J+Y9
+        Av5yDsuL1Gf5YEHr7dUo78GabpI9HuxgLxxL9qt3I6b7P4DTHmIiRCVF2YtUILiw
+        Id/96olP6QvTotR3SUbblcECAwEAAaBPME0GCSqGSIb3DQEJDjFAMD4wPAYDVR0R
+        BDUwM4IRd3d3LmxvY2FsaG9zdC5jb22CBHRlc3SCEnRlc3QubG9jYWxob3N0LmNv
+        bYcEfwAAATANBgkqhkiG9w0BAQ0FAAOCAQEA0IIiMvj/GjKhxIwRucTtEMsuQRCe
+        l5NhIympe8odDkd39NHXEreqwc1Xxz2rsDq4f4dLap8bJqOnU1y53LJhlcRfrMcC
+        s0/zDZ5yQtsP1ENhr/Rb8BkvMju0WUD2nfpSTKlPirBB8mK63iq1EXR/gRFx5J37
+        7rxg9cf+plKuA2a/lVxYd9E8QENWqj2LmWS5y4OnageGHz2WDZJDM+ov2S68eb4q
+        9JrxHlqJk7kRWBYBmSjO+66vOs4Kl0KcdepJja5FCnebUeXWusC0dgtxeR1xWE8q
+        AHNyaY33J1wVIcjV0Vb82BYnaaVNLiemEfx3fW430tSDH7453mm9Xo3VyQ==
+        -----END CERTIFICATE REQUEST-----
+    csrtext:
+      summary: example of certificate signing request in plain text
+      value: |
+        -----BEGIN CERTIFICATE REQUEST-----
+        MIIC9zCCAd8CAQAwYzELMAkGA1UEBhMCRlIxDzANBgNVBAgTBkZyYW5jZTEOMAwG
+        A1UEBxMFUGFyaXMxDjAMBgNVBAoTBU15T3JnMQ8wDQYDVQQLEwZNeVVuaXQxEjAQ
+        BgNVBAMTCWxvY2FsaG9zdDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEB
+        ANCCLXbfA9DRXb4Iq+1ugGjaW20Tcc5/GCYcbVuPjWPgx5ZcKyxhCQndIS05mRAT
+        aNPJlyPUGiry7emx/bckzmg23Ok1ZlbO6SlWrvRlFxR/PzTXK0xLe8uASsMC9J4V
+        O2B1x7oVS7P7E9J2ZKcdqppnsOWCGYMxWv9kpcALFh1s4jumBWcDCephNtF+AtZn
+        BE+lJDDAQtqaiT3tjROOYFVoMShAyxEH3agUuGOI/A0kW5mlhr7rzD9bVVi/J+Y9
+        Av5yDsuL1Gf5YEHr7dUo78GabpI9HuxgLxxL9qt3I6b7P4DTHmIiRCVF2YtUILiw
+        Id/96olP6QvTotR3SUbblcECAwEAAaBPME0GCSqGSIb3DQEJDjFAMD4wPAYDVR0R
+        BDUwM4IRd3d3LmxvY2FsaG9zdC5jb22CBHRlc3SCEnRlc3QubG9jYWxob3N0LmNv
+        bYcEfwAAATANBgkqhkiG9w0BAQ0FAAOCAQEA0IIiMvj/GjKhxIwRucTtEMsuQRCe
+        l5NhIympe8odDkd39NHXEreqwc1Xxz2rsDq4f4dLap8bJqOnU1y53LJhlcRfrMcC
+        s0/zDZ5yQtsP1ENhr/Rb8BkvMju0WUD2nfpSTKlPirBB8mK63iq1EXR/gRFx5J37
+        7rxg9cf+plKuA2a/lVxYd9E8QENWqj2LmWS5y4OnageGHz2WDZJDM+ov2S68eb4q
+        9JrxHlqJk7kRWBYBmSjO+66vOs4Kl0KcdepJja5FCnebUeXWusC0dgtxeR1xWE8q
+        AHNyaY33J1wVIcjV0Vb82BYnaaVNLiemEfx3fW430tSDH7453mm9Xo3VyQ==
+        -----END CERTIFICATE REQUEST-----
+    csrjson:
+      summary: example of certificate signing request in json
+      value:
+        csr: |
+          -----BEGIN CERTIFICATE REQUEST-----
+          MIIC9zCCAd8CAQAwYzELMAkGA1UEBhMCRlIxDzANBgNVBAgTBkZyYW5jZTEOMAwG
+          A1UEBxMFUGFyaXMxDjAMBgNVBAoTBU15T3JnMQ8wDQYDVQQLEwZNeVVuaXQxEjAQ
+          BgNVBAMTCWxvY2FsaG9zdDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEB
+          ANCCLXbfA9DRXb4Iq+1ugGjaW20Tcc5/GCYcbVuPjWPgx5ZcKyxhCQndIS05mRAT
+          aNPJlyPUGiry7emx/bckzmg23Ok1ZlbO6SlWrvRlFxR/PzTXK0xLe8uASsMC9J4V
+          O2B1x7oVS7P7E9J2ZKcdqppnsOWCGYMxWv9kpcALFh1s4jumBWcDCephNtF+AtZn
+          BE+lJDDAQtqaiT3tjROOYFVoMShAyxEH3agUuGOI/A0kW5mlhr7rzD9bVVi/J+Y9
+          Av5yDsuL1Gf5YEHr7dUo78GabpI9HuxgLxxL9qt3I6b7P4DTHmIiRCVF2YtUILiw
+          Id/96olP6QvTotR3SUbblcECAwEAAaBPME0GCSqGSIb3DQEJDjFAMD4wPAYDVR0R
+          BDUwM4IRd3d3LmxvY2FsaG9zdC5jb22CBHRlc3SCEnRlc3QubG9jYWxob3N0LmNv
+          bYcEfwAAATANBgkqhkiG9w0BAQ0FAAOCAQEA0IIiMvj/GjKhxIwRucTtEMsuQRCe
+          l5NhIympe8odDkd39NHXEreqwc1Xxz2rsDq4f4dLap8bJqOnU1y53LJhlcRfrMcC
+          s0/zDZ5yQtsP1ENhr/Rb8BkvMju0WUD2nfpSTKlPirBB8mK63iq1EXR/gRFx5J37
+          7rxg9cf+plKuA2a/lVxYd9E8QENWqj2LmWS5y4OnageGHz2WDZJDM+ov2S68eb4q
+          9JrxHlqJk7kRWBYBmSjO+66vOs4Kl0KcdepJja5FCnebUeXWusC0dgtxeR1xWE8q
+          AHNyaY33J1wVIcjV0Vb82BYnaaVNLiemEfx3fW430tSDH7453mm9Xo3VyQ==
+          -----END CERTIFICATE REQUEST-----
+    crttext:
+      summary: example of certificate in plain text
+      value: |
+        -----BEGIN CERTIFICATE-----
+        MIIDujCCAqKgAwIBAgIQUS8cTgxiajpw6PQ6ex9adDANBgkqhkiG9w0BAQ0FADBl
+        MQswCQYDVQQGEwJGUjEPMA0GA1UECBMGRnJhbmNlMQ4wDAYDVQQHEwVQYXJpczEJ
+        MAcGA1UECRMAMQkwBwYDVQQREwAxDjAMBgNVBAoTBU15T3JnMQ8wDQYDVQQLEwZN
+        eVVuaXQwHhcNMjIwOTMwMDkzNTI4WhcNMzIwOTI3MDkzNTI4WjBjMQswCQYDVQQG
+        EwJGUjEPMA0GA1UECBMGRnJhbmNlMQ4wDAYDVQQHEwVQYXJpczEOMAwGA1UEChMF
+        TXlPcmcxDzANBgNVBAsTBk15VW5pdDESMBAGA1UEAxMJbG9jYWxob3N0MIIBIjAN
+        BgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA8JTnQS8bhBfcLZkM1D/fJrh62lyd
+        aXw7ALLugH83RaLWrLePOLLF/UNCEbiJAQ9mzxIfCuHJJyqYwc2jBqRsPu/HQeQv
+        +l7EG703N5WDfR47jxPHHJ0ZnQOnwtskNC/Xc99RgeohwuDvfWDddFy0hnIaV9SZ
+        o7S1Le7C7fOJMc/6X0qob3i19sqGsvwLuZLAET/NUEQ9TN67cwhyDDKm91QCNBEx
+        NdahK0bDdlgx2iYJEw3CTmTbd9X7Icrvvy1b+KyVrM9xgF6EHhU5zng4bz0sXmwC
+        9JzjgFuLXvkWYn/TpAwN7y+eafDfXwrY81K+PUlGwJnLA4YzYHKJ/HD73QIDAQAB
+        o2gwZjAOBgNVHQ8BAf8EBAMCAoQwHQYDVR0lBBYwFAYIKwYBBQUHAwIGCCsGAQUF
+        BwMBMB8GA1UdIwQYMBaAFBpy98Jx3WM+nnSBAUjOiiagjExgMBQGA1UdEQQNMAuC
+        CWxvY2FsaG9zdDANBgkqhkiG9w0BAQ0FAAOCAQEANSCX3ZMGbs03osw+PRhVQUKI
+        /kh0CcT8j4J8O6cJBPQJfE+M8YftvcVA56nCD6J4Szkne4aVbBvy5ziOo7f8N9Qp
+        QYNwHJKo8oZSHH40nDv34d/cud/1rlBczLzitVqjJt4PZebdf4TC749WdVriQFJP
+        6RiVsmJHmCtafy2UzbDafD9gbw2PZe6hqRyX328OWMvMly+lsgadqUh0Rv2565Pt
+        0cZLDRgVlS6FJ0qA3SCCv8O67+yGTrFDQioL0z/cCX8ZCkJ87X0vTAXE2fhcKg1S
+        rJ91HPZGUYGrERK+N5fsJSSuKvgbnwebo4ClaW/vHYQkiqkIw9bqIBwekLiGsA==
+        -----END CERTIFICATE-----
+    crtjson:
+      summary: example of certificate in json
+      value:
+        crt: |
+          -----BEGIN CERTIFICATE-----
+          MIIDujCCAqKgAwIBAgIQUS8cTgxiajpw6PQ6ex9adDANBgkqhkiG9w0BAQ0FADBl
+          MQswCQYDVQQGEwJGUjEPMA0GA1UECBMGRnJhbmNlMQ4wDAYDVQQHEwVQYXJpczEJ
+          MAcGA1UECRMAMQkwBwYDVQQREwAxDjAMBgNVBAoTBU15T3JnMQ8wDQYDVQQLEwZN
+          eVVuaXQwHhcNMjIwOTMwMDkzNTI4WhcNMzIwOTI3MDkzNTI4WjBjMQswCQYDVQQG
+          EwJGUjEPMA0GA1UECBMGRnJhbmNlMQ4wDAYDVQQHEwVQYXJpczEOMAwGA1UEChMF
+          TXlPcmcxDzANBgNVBAsTBk15VW5pdDESMBAGA1UEAxMJbG9jYWxob3N0MIIBIjAN
+          BgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA8JTnQS8bhBfcLZkM1D/fJrh62lyd
+          aXw7ALLugH83RaLWrLePOLLF/UNCEbiJAQ9mzxIfCuHJJyqYwc2jBqRsPu/HQeQv
+          +l7EG703N5WDfR47jxPHHJ0ZnQOnwtskNC/Xc99RgeohwuDvfWDddFy0hnIaV9SZ
+          o7S1Le7C7fOJMc/6X0qob3i19sqGsvwLuZLAET/NUEQ9TN67cwhyDDKm91QCNBEx
+          NdahK0bDdlgx2iYJEw3CTmTbd9X7Icrvvy1b+KyVrM9xgF6EHhU5zng4bz0sXmwC
+          9JzjgFuLXvkWYn/TpAwN7y+eafDfXwrY81K+PUlGwJnLA4YzYHKJ/HD73QIDAQAB
+          o2gwZjAOBgNVHQ8BAf8EBAMCAoQwHQYDVR0lBBYwFAYIKwYBBQUHAwIGCCsGAQUF
+          BwMBMB8GA1UdIwQYMBaAFBpy98Jx3WM+nnSBAUjOiiagjExgMBQGA1UdEQQNMAuC
+          CWxvY2FsaG9zdDANBgkqhkiG9w0BAQ0FAAOCAQEANSCX3ZMGbs03osw+PRhVQUKI
+          /kh0CcT8j4J8O6cJBPQJfE+M8YftvcVA56nCD6J4Szkne4aVbBvy5ziOo7f8N9Qp
+          QYNwHJKo8oZSHH40nDv34d/cud/1rlBczLzitVqjJt4PZebdf4TC749WdVriQFJP
+          6RiVsmJHmCtafy2UzbDafD9gbw2PZe6hqRyX328OWMvMly+lsgadqUh0Rv2565Pt
+          0cZLDRgVlS6FJ0qA3SCCv8O67+yGTrFDQioL0z/cCX8ZCkJ87X0vTAXE2fhcKg1S
+          rJ91HPZGUYGrERK+N5fsJSSuKvgbnwebo4ClaW/vHYQkiqkIw9bqIBwekLiGsA==
+          -----END CERTIFICATE-----
+    cacrtjson:
+      summary: example of CA certificate in json
+      value:
+        ca:
+          crt: |
+            -----BEGIN CERTIFICATE-----
+            MIIDujCCAqKgAwIBAgIQUS8cTgxiajpw6PQ6ex9adDANBgkqhkiG9w0BAQ0FADBl
+            MQswCQYDVQQGEwJGUjEPMA0GA1UECBMGRnJhbmNlMQ4wDAYDVQQHEwVQYXJpczEJ
+            MAcGA1UECRMAMQkwBwYDVQQREwAxDjAMBgNVBAoTBU15T3JnMQ8wDQYDVQQLEwZN
+            eVVuaXQwHhcNMjIwOTMwMDkzNTI4WhcNMzIwOTI3MDkzNTI4WjBjMQswCQYDVQQG
+            EwJGUjEPMA0GA1UECBMGRnJhbmNlMQ4wDAYDVQQHEwVQYXJpczEOMAwGA1UEChMF
+            TXlPcmcxDzANBgNVBAsTBk15VW5pdDESMBAGA1UEAxMJbG9jYWxob3N0MIIBIjAN
+            BgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA8JTnQS8bhBfcLZkM1D/fJrh62lyd
+            aXw7ALLugH83RaLWrLePOLLF/UNCEbiJAQ9mzxIfCuHJJyqYwc2jBqRsPu/HQeQv
+            +l7EG703N5WDfR47jxPHHJ0ZnQOnwtskNC/Xc99RgeohwuDvfWDddFy0hnIaV9SZ
+            o7S1Le7C7fOJMc/6X0qob3i19sqGsvwLuZLAET/NUEQ9TN67cwhyDDKm91QCNBEx
+            NdahK0bDdlgx2iYJEw3CTmTbd9X7Icrvvy1b+KyVrM9xgF6EHhU5zng4bz0sXmwC
+            9JzjgFuLXvkWYn/TpAwN7y+eafDfXwrY81K+PUlGwJnLA4YzYHKJ/HD73QIDAQAB
+            o2gwZjAOBgNVHQ8BAf8EBAMCAoQwHQYDVR0lBBYwFAYIKwYBBQUHAwIGCCsGAQUF
+            BwMBMB8GA1UdIwQYMBaAFBpy98Jx3WM+nnSBAUjOiiagjExgMBQGA1UdEQQNMAuC
+            CWxvY2FsaG9zdDANBgkqhkiG9w0BAQ0FAAOCAQEANSCX3ZMGbs03osw+PRhVQUKI
+            /kh0CcT8j4J8O6cJBPQJfE+M8YftvcVA56nCD6J4Szkne4aVbBvy5ziOo7f8N9Qp
+            QYNwHJKo8oZSHH40nDv34d/cud/1rlBczLzitVqjJt4PZebdf4TC749WdVriQFJP
+            6RiVsmJHmCtafy2UzbDafD9gbw2PZe6hqRyX328OWMvMly+lsgadqUh0Rv2565Pt
+            0cZLDRgVlS6FJ0qA3SCCv8O67+yGTrFDQioL0z/cCX8ZCkJ87X0vTAXE2fhcKg1S
+            rJ91HPZGUYGrERK+N5fsJSSuKvgbnwebo4ClaW/vHYQkiqkIw9bqIBwekLiGsA==
+            -----END CERTIFICATE-----
+    alltext:
+      summary: example of all-in-one in plain text
+      value: |
+        -----BEGIN RSA PRIVATE KEY-----
+        MIIEowIBAAKCAQEAvFiYKYmsakFLKdYuhZznK34t8VCDqOmbF8LTgEnfU+cTeYuV
+        05wgmv7Zd9HMV6GYKU55p9YzCpi1naTiBu75/ZseR0AerchFQ0E7OHdav41QNPeN
+        q62QRq7yVS8GkW37ayKzmO/yeJ+FpmOmE+PEKRpeMCtRlP8tJChLVv1uH08kwvRQ
+        Vkp048UQFeqkbNPWUzPIibqIQWAWCH01heEKXYLht0NsTGnzFMo4886QHRpNzJbm
+        NTKgO7+D0eS3mRAwPYiJ8GXGckmzZplfZypXEsL2x4POcWwodBRQ1mHL2wdeEVC+
+        ZHKEW/dLQc2KocJSLsmylSpmiB3fbrZ2rQH7zQIDAQABAoIBAHRKu4ECOYvNzuwB
+        C+6Bx5ZqLVHPZcuYmaNdLxwKALOcfMDSd+sVfmhVLM83odUFuJ7gjmsb7Z4AVjsF
+        AG5Jhd+ZtGNH6ulgO6vgDgG6aDTXuwtJQpca7ndGM+h2xbZr0w3+eifXF750uJ/Y
+        7UVgn9DFMBzL0m6N9EBcBNCsYB9BvJxWDjzdU8DREA3GtHGiqKB8WXGtkW15ZjjX
+        PExefgFdsH1b/nRmGtzePsXeZAYAC9rAstaSbFpWXwyW39TGwJ5gLfV+I8Wpo+7V
+        Ec3V50YhzW4k8ESIOC6C0Fv9BPzvvz2qmrTj33a3Q6EcNynalDPklJkL6qpEiuGN
+        mybjM8ECgYEAwvzfJ+0ojoacJvRQ5O6KS/HDO0CdX3lAVPEY4G84lLKCtyb+Z8IK
+        4XPFAVJCWv6SEe6cTpt+hVoJ0wXN14PpN4ECKw5b1LxsKimruwUzgs1MiwP6Ax2R
+        ZS+W6gzxx3YUobYo6JUjdSFLnMCot0cykS/gYUvDkL3qnHGN2f7uKf0CgYEA90ez
+        f8Ky5FhIhLmgdx9yXQ6Wq1LMtIHu4MQz1Th/5FzjzKJl7duRYAuqLPHnwIHwdo8U
+        AhXov3dGczp5TLXG+LQ4MudNRMWNaGNXrqA0qCz8K9q0EkNbv5MYmLqps7HAxk4S
+        z13IgzVW0p6tPcBrSbA/55SRww5Y9ce9xdFbmhECgYA9LT2Ot1fsL8u6ZRkkWrtF
+        TJsmcgVuOQq4G9TkRcEI1mEwualEQJtNVRdQbNCo4ApQWf7soti1WiSO8tk8bwSz
+        B2T4wU6KlnuRVvWsfdtFhMgpLZw5cgN2LdI5qMoK/L9IZXC8WF6Bl2qzybalmk8B
+        QnYx0KWROiTr5KzO4q8yuQKBgQC9B8fVC85bNo3BQHHFfnmbX5KYR0SLXKRymCoT
+        fgxuUwAlJ6QJz4ZzSJd/ojEKfYqH51phOcRh0Vk+rt2ZYYBIEOTBLQZpYyd1PDQE
+        Hx4Bzdm74IU1TN6vNVBhOJiP8HswXPCOKuAkRTso6PoAMb8SZrSDYJSI6sfgox+U
+        QDXpMQKBgDVV/ErDXCPPDLcgyDwCMTp0OafHMzjdUyXQ5fokBXdZnJRbQPlRGflj
+        se2jb6DGx59hTxfD/Om7u1EBr2o21aPkztQxh7I8A2UCQMbaLzw13mBBi4RbkMTF
+        of4k7hrpNUWAeQLAOlJQnz1dW10DRQdttgyW96m+O/sOE4tPgjCL
+        -----END RSA PRIVATE KEY-----
+        -----BEGIN CERTIFICATE REQUEST-----
+        MIIC1TCCAb0CAQAwYzELMAkGA1UEBhMCRlIxDzANBgNVBAgTBkZyYW5jZTEOMAwG
+        A1UEBxMFUGFyaXMxDjAMBgNVBAoTBU15T3JnMQ8wDQYDVQQLEwZNeVVuaXQxEjAQ
+        BgNVBAMTCWxvY2FsaG9zdDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEB
+        ALxYmCmJrGpBSynWLoWc5yt+LfFQg6jpmxfC04BJ31PnE3mLldOcIJr+2XfRzFeh
+        mClOeafWMwqYtZ2k4gbu+f2bHkdAHq3IRUNBOzh3Wr+NUDT3jautkEau8lUvBpFt
+        +2sis5jv8nifhaZjphPjxCkaXjArUZT/LSQoS1b9bh9PJML0UFZKdOPFEBXqpGzT
+        1lMzyIm6iEFgFgh9NYXhCl2C4bdDbExp8xTKOPPOkB0aTcyW5jUyoDu/g9Hkt5kQ
+        MD2IifBlxnJJs2aZX2cqVxLC9seDznFsKHQUUNZhy9sHXhFQvmRyhFv3S0HNiqHC
+        Ui7JspUqZogd3262dq0B+80CAwEAAaAtMCsGCSqGSIb3DQEJDjEeMBwwGgYDVR0R
+        BBMwEYIJbG9jYWxob3N0hwR/AAABMA0GCSqGSIb3DQEBDQUAA4IBAQATzCsBe7IA
+        fwPpSyw3g2GjyteRmX8X+kMeyJH1UsytaTQOUu57R7fW8WrrR+kp32YRF0R7GEeM
+        dgXlYUqgDHI5z//7JmIqQisl3oIdePlL/GdTA6xbt44bmrnD3VQY0xFIlWzf0l1g
+        xyeI1lWvxTZSsGoTG5sfcR+Q3ZMCLvrl01WDLz6qusJQHOEoWxWokaLclpH4qOCo
+        K1Ptm3ITF/mux+TN1INJNAk8Le5latiMNWlZnHjFYXG+08pKEU8hGC6itXICTIpu
+        LEagpc6kc/ZKNuER9ZpMFjMiDo9Ynv1nTyVzpSBwME4wjIaPBRyN6K5mjPS1S66l
+        BOVbnvULXoxS
+        -----END CERTIFICATE REQUEST-----
+        -----BEGIN CERTIFICATE-----
+        MIIDujCCAqKgAwIBAgIQJm28BM9tFs24KHN1mq7AXzANBgkqhkiG9w0BAQ0FADBl
+        MQswCQYDVQQGEwJGUjEPMA0GA1UECBMGRnJhbmNlMQ4wDAYDVQQHEwVQYXJpczEJ
+        MAcGA1UECRMAMQkwBwYDVQQREwAxDjAMBgNVBAoTBU15T3JnMQ8wDQYDVQQLEwZN
+        eVVuaXQwHhcNMjIwOTMwMTIzNzQ1WhcNMzIwOTI3MTIzNzQ1WjBjMQswCQYDVQQG
+        EwJGUjEPMA0GA1UECBMGRnJhbmNlMQ4wDAYDVQQHEwVQYXJpczEOMAwGA1UEChMF
+        TXlPcmcxDzANBgNVBAsTBk15VW5pdDESMBAGA1UEAxMJbG9jYWxob3N0MIIBIjAN
+        BgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvFiYKYmsakFLKdYuhZznK34t8VCD
+        qOmbF8LTgEnfU+cTeYuV05wgmv7Zd9HMV6GYKU55p9YzCpi1naTiBu75/ZseR0Ae
+        rchFQ0E7OHdav41QNPeNq62QRq7yVS8GkW37ayKzmO/yeJ+FpmOmE+PEKRpeMCtR
+        lP8tJChLVv1uH08kwvRQVkp048UQFeqkbNPWUzPIibqIQWAWCH01heEKXYLht0Ns
+        TGnzFMo4886QHRpNzJbmNTKgO7+D0eS3mRAwPYiJ8GXGckmzZplfZypXEsL2x4PO
+        cWwodBRQ1mHL2wdeEVC+ZHKEW/dLQc2KocJSLsmylSpmiB3fbrZ2rQH7zQIDAQAB
+        o2gwZjAOBgNVHQ8BAf8EBAMCAoQwHQYDVR0lBBYwFAYIKwYBBQUHAwIGCCsGAQUF
+        BwMBMB8GA1UdIwQYMBaAFBpy98Jx3WM+nnSBAUjOiiagjExgMBQGA1UdEQQNMAuC
+        CWxvY2FsaG9zdDANBgkqhkiG9w0BAQ0FAAOCAQEAb7gG4fwUMeff2LL9kge9NM0b
+        ALIXlvvEcJY+LZ2UdbZC9/DWfOfYiQSWWQVfgzAyEoHUTNu/LJluQybIbhAZ1YU5
+        Btwq0j/nyL0QhoDFyRqP9b2rd2yqWmsDJHOexRVnw5nh8N2O6uu6yB79FD/mhWyu
+        Ojl1N3JC5Ok1qtG6zNTbbsT2cIULd9POP972KE+FK7wWHmCYL3VKbCBNnl5Sj1sc
+        KVKDNChryX4qCRPpfDp371B+DTpywEarGsXMAVZtYA1y4JktVBA/cuL3WCVCE1Er
+        vOt6Nq91y708xJp1SyzaWAjX/Czvl/qoBeOLoreIzW48oEyOM3kusBJ8uil8Qw==
+        -----END CERTIFICATE-----
+    alljson:
+      summary: example of all-in-one in plain text
+      value:
+        key:
+          priv: |
+            -----BEGIN RSA PRIVATE KEY-----
+            MIIEowIBAAKCAQEAvFiYKYmsakFLKdYuhZznK34t8VCDqOmbF8LTgEnfU+cTeYuV
+            05wgmv7Zd9HMV6GYKU55p9YzCpi1naTiBu75/ZseR0AerchFQ0E7OHdav41QNPeN
+            q62QRq7yVS8GkW37ayKzmO/yeJ+FpmOmE+PEKRpeMCtRlP8tJChLVv1uH08kwvRQ
+            Vkp048UQFeqkbNPWUzPIibqIQWAWCH01heEKXYLht0NsTGnzFMo4886QHRpNzJbm
+            NTKgO7+D0eS3mRAwPYiJ8GXGckmzZplfZypXEsL2x4POcWwodBRQ1mHL2wdeEVC+
+            ZHKEW/dLQc2KocJSLsmylSpmiB3fbrZ2rQH7zQIDAQABAoIBAHRKu4ECOYvNzuwB
+            C+6Bx5ZqLVHPZcuYmaNdLxwKALOcfMDSd+sVfmhVLM83odUFuJ7gjmsb7Z4AVjsF
+            AG5Jhd+ZtGNH6ulgO6vgDgG6aDTXuwtJQpca7ndGM+h2xbZr0w3+eifXF750uJ/Y
+            7UVgn9DFMBzL0m6N9EBcBNCsYB9BvJxWDjzdU8DREA3GtHGiqKB8WXGtkW15ZjjX
+            PExefgFdsH1b/nRmGtzePsXeZAYAC9rAstaSbFpWXwyW39TGwJ5gLfV+I8Wpo+7V
+            Ec3V50YhzW4k8ESIOC6C0Fv9BPzvvz2qmrTj33a3Q6EcNynalDPklJkL6qpEiuGN
+            mybjM8ECgYEAwvzfJ+0ojoacJvRQ5O6KS/HDO0CdX3lAVPEY4G84lLKCtyb+Z8IK
+            4XPFAVJCWv6SEe6cTpt+hVoJ0wXN14PpN4ECKw5b1LxsKimruwUzgs1MiwP6Ax2R
+            ZS+W6gzxx3YUobYo6JUjdSFLnMCot0cykS/gYUvDkL3qnHGN2f7uKf0CgYEA90ez
+            f8Ky5FhIhLmgdx9yXQ6Wq1LMtIHu4MQz1Th/5FzjzKJl7duRYAuqLPHnwIHwdo8U
+            AhXov3dGczp5TLXG+LQ4MudNRMWNaGNXrqA0qCz8K9q0EkNbv5MYmLqps7HAxk4S
+            z13IgzVW0p6tPcBrSbA/55SRww5Y9ce9xdFbmhECgYA9LT2Ot1fsL8u6ZRkkWrtF
+            TJsmcgVuOQq4G9TkRcEI1mEwualEQJtNVRdQbNCo4ApQWf7soti1WiSO8tk8bwSz
+            B2T4wU6KlnuRVvWsfdtFhMgpLZw5cgN2LdI5qMoK/L9IZXC8WF6Bl2qzybalmk8B
+            QnYx0KWROiTr5KzO4q8yuQKBgQC9B8fVC85bNo3BQHHFfnmbX5KYR0SLXKRymCoT
+            fgxuUwAlJ6QJz4ZzSJd/ojEKfYqH51phOcRh0Vk+rt2ZYYBIEOTBLQZpYyd1PDQE
+            Hx4Bzdm74IU1TN6vNVBhOJiP8HswXPCOKuAkRTso6PoAMb8SZrSDYJSI6sfgox+U
+            QDXpMQKBgDVV/ErDXCPPDLcgyDwCMTp0OafHMzjdUyXQ5fokBXdZnJRbQPlRGflj
+            se2jb6DGx59hTxfD/Om7u1EBr2o21aPkztQxh7I8A2UCQMbaLzw13mBBi4RbkMTF
+            of4k7hrpNUWAeQLAOlJQnz1dW10DRQdttgyW96m+O/sOE4tPgjCL
+            -----END RSA PRIVATE KEY-----
+          pub: |
+            -----BEGIN PUBLIC KEY-----
+            MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsAW/Z2b0MH1rkl9GParB
+            Q8jPpwi/QQwhaAnr0jYFAySQ/Y5TqRa3T9VxUqx7QUyT+uwWpRq8noUKHLeq2xaD
+            Nkd6n/DzUQUU8zXxKilhDMe8/h8vxYkKy4+18b9TB0/En+ezRAY8okfloB1XjncK
+            KW/8xsusJb1kV+QwEyMqpSypmxsuQo+943ydDsQ9Cmp4noi7tht2+MMeQVI5p88d
+            5XXtjCq0Psu/R4teaaEXsq35Uf8kGkPb2/buXCdtW8IGFBYmcjcdnU70BFefFye7
+            s94Y86+CMdNp9P1Wwgy3b108NMfp5q+TfmJM+8ZI6MBUfyrMxCSxYJx4QUPNiLW5
+            ywIDAQAB
+            -----END PUBLIC KEY-----
+        csr: |
+          -----BEGIN CERTIFICATE REQUEST-----
+          MIIC1TCCAb0CAQAwYzELMAkGA1UEBhMCRlIxDzANBgNVBAgTBkZyYW5jZTEOMAwG
+          A1UEBxMFUGFyaXMxDjAMBgNVBAoTBU15T3JnMQ8wDQYDVQQLEwZNeVVuaXQxEjAQ
+          BgNVBAMTCWxvY2FsaG9zdDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEB
+          ALxYmCmJrGpBSynWLoWc5yt+LfFQg6jpmxfC04BJ31PnE3mLldOcIJr+2XfRzFeh
+          mClOeafWMwqYtZ2k4gbu+f2bHkdAHq3IRUNBOzh3Wr+NUDT3jautkEau8lUvBpFt
+          +2sis5jv8nifhaZjphPjxCkaXjArUZT/LSQoS1b9bh9PJML0UFZKdOPFEBXqpGzT
+          1lMzyIm6iEFgFgh9NYXhCl2C4bdDbExp8xTKOPPOkB0aTcyW5jUyoDu/g9Hkt5kQ
+          MD2IifBlxnJJs2aZX2cqVxLC9seDznFsKHQUUNZhy9sHXhFQvmRyhFv3S0HNiqHC
+          Ui7JspUqZogd3262dq0B+80CAwEAAaAtMCsGCSqGSIb3DQEJDjEeMBwwGgYDVR0R
+          BBMwEYIJbG9jYWxob3N0hwR/AAABMA0GCSqGSIb3DQEBDQUAA4IBAQATzCsBe7IA
+          fwPpSyw3g2GjyteRmX8X+kMeyJH1UsytaTQOUu57R7fW8WrrR+kp32YRF0R7GEeM
+          dgXlYUqgDHI5z//7JmIqQisl3oIdePlL/GdTA6xbt44bmrnD3VQY0xFIlWzf0l1g
+          xyeI1lWvxTZSsGoTG5sfcR+Q3ZMCLvrl01WDLz6qusJQHOEoWxWokaLclpH4qOCo
+          K1Ptm3ITF/mux+TN1INJNAk8Le5latiMNWlZnHjFYXG+08pKEU8hGC6itXICTIpu
+          LEagpc6kc/ZKNuER9ZpMFjMiDo9Ynv1nTyVzpSBwME4wjIaPBRyN6K5mjPS1S66l
+          BOVbnvULXoxS
+          -----END CERTIFICATE REQUEST-----
+        crt: |
+          -----BEGIN CERTIFICATE-----
+          MIIDujCCAqKgAwIBAgIQJm28BM9tFs24KHN1mq7AXzANBgkqhkiG9w0BAQ0FADBl
+          MQswCQYDVQQGEwJGUjEPMA0GA1UECBMGRnJhbmNlMQ4wDAYDVQQHEwVQYXJpczEJ
+          MAcGA1UECRMAMQkwBwYDVQQREwAxDjAMBgNVBAoTBU15T3JnMQ8wDQYDVQQLEwZN
+          eVVuaXQwHhcNMjIwOTMwMTIzNzQ1WhcNMzIwOTI3MTIzNzQ1WjBjMQswCQYDVQQG
+          EwJGUjEPMA0GA1UECBMGRnJhbmNlMQ4wDAYDVQQHEwVQYXJpczEOMAwGA1UEChMF
+          TXlPcmcxDzANBgNVBAsTBk15VW5pdDESMBAGA1UEAxMJbG9jYWxob3N0MIIBIjAN
+          BgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvFiYKYmsakFLKdYuhZznK34t8VCD
+          qOmbF8LTgEnfU+cTeYuV05wgmv7Zd9HMV6GYKU55p9YzCpi1naTiBu75/ZseR0Ae
+          rchFQ0E7OHdav41QNPeNq62QRq7yVS8GkW37ayKzmO/yeJ+FpmOmE+PEKRpeMCtR
+          lP8tJChLVv1uH08kwvRQVkp048UQFeqkbNPWUzPIibqIQWAWCH01heEKXYLht0Ns
+          TGnzFMo4886QHRpNzJbmNTKgO7+D0eS3mRAwPYiJ8GXGckmzZplfZypXEsL2x4PO
+          cWwodBRQ1mHL2wdeEVC+ZHKEW/dLQc2KocJSLsmylSpmiB3fbrZ2rQH7zQIDAQAB
+          o2gwZjAOBgNVHQ8BAf8EBAMCAoQwHQYDVR0lBBYwFAYIKwYBBQUHAwIGCCsGAQUF
+          BwMBMB8GA1UdIwQYMBaAFBpy98Jx3WM+nnSBAUjOiiagjExgMBQGA1UdEQQNMAuC
+          CWxvY2FsaG9zdDANBgkqhkiG9w0BAQ0FAAOCAQEAb7gG4fwUMeff2LL9kge9NM0b
+          ALIXlvvEcJY+LZ2UdbZC9/DWfOfYiQSWWQVfgzAyEoHUTNu/LJluQybIbhAZ1YU5
+          Btwq0j/nyL0QhoDFyRqP9b2rd2yqWmsDJHOexRVnw5nh8N2O6uu6yB79FD/mhWyu
+          Ojl1N3JC5Ok1qtG6zNTbbsT2cIULd9POP972KE+FK7wWHmCYL3VKbCBNnl5Sj1sc
+          KVKDNChryX4qCRPpfDp371B+DTpywEarGsXMAVZtYA1y4JktVBA/cuL3WCVCE1Er
+          vOt6Nq91y708xJp1SyzaWAjX/Czvl/qoBeOLoreIzW48oEyOM3kusBJ8uil8Qw==
+          -----END CERTIFICATE-----
+        ca:
+          crt: |
+            -----BEGIN CERTIFICATE-----
+            MIIDujCCAqKgAwIBAgIQUS8cTgxiajpw6PQ6ex9adDANBgkqhkiG9w0BAQ0FADBl
+            MQswCQYDVQQGEwJGUjEPMA0GA1UECBMGRnJhbmNlMQ4wDAYDVQQHEwVQYXJpczEJ
+            MAcGA1UECRMAMQkwBwYDVQQREwAxDjAMBgNVBAoTBU15T3JnMQ8wDQYDVQQLEwZN
+            eVVuaXQwHhcNMjIwOTMwMDkzNTI4WhcNMzIwOTI3MDkzNTI4WjBjMQswCQYDVQQG
+            EwJGUjEPMA0GA1UECBMGRnJhbmNlMQ4wDAYDVQQHEwVQYXJpczEOMAwGA1UEChMF
+            TXlPcmcxDzANBgNVBAsTBk15VW5pdDESMBAGA1UEAxMJbG9jYWxob3N0MIIBIjAN
+            BgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA8JTnQS8bhBfcLZkM1D/fJrh62lyd
+            aXw7ALLugH83RaLWrLePOLLF/UNCEbiJAQ9mzxIfCuHJJyqYwc2jBqRsPu/HQeQv
+            +l7EG703N5WDfR47jxPHHJ0ZnQOnwtskNC/Xc99RgeohwuDvfWDddFy0hnIaV9SZ
+            o7S1Le7C7fOJMc/6X0qob3i19sqGsvwLuZLAET/NUEQ9TN67cwhyDDKm91QCNBEx
+            NdahK0bDdlgx2iYJEw3CTmTbd9X7Icrvvy1b+KyVrM9xgF6EHhU5zng4bz0sXmwC
+            9JzjgFuLXvkWYn/TpAwN7y+eafDfXwrY81K+PUlGwJnLA4YzYHKJ/HD73QIDAQAB
+            o2gwZjAOBgNVHQ8BAf8EBAMCAoQwHQYDVR0lBBYwFAYIKwYBBQUHAwIGCCsGAQUF
+            BwMBMB8GA1UdIwQYMBaAFBpy98Jx3WM+nnSBAUjOiiagjExgMBQGA1UdEQQNMAuC
+            CWxvY2FsaG9zdDANBgkqhkiG9w0BAQ0FAAOCAQEANSCX3ZMGbs03osw+PRhVQUKI
+            /kh0CcT8j4J8O6cJBPQJfE+M8YftvcVA56nCD6J4Szkne4aVbBvy5ziOo7f8N9Qp
+            QYNwHJKo8oZSHH40nDv34d/cud/1rlBczLzitVqjJt4PZebdf4TC749WdVriQFJP
+            6RiVsmJHmCtafy2UzbDafD9gbw2PZe6hqRyX328OWMvMly+lsgadqUh0Rv2565Pt
+            0cZLDRgVlS6FJ0qA3SCCv8O67+yGTrFDQioL0z/cCX8ZCkJ87X0vTAXE2fhcKg1S
+            rJ91HPZGUYGrERK+N5fsJSSuKvgbnwebo4ClaW/vHYQkiqkIw9bqIBwekLiGsA==
+            -----END CERTIFICATE-----
