@@ -1,8 +1,13 @@
-simpleca
-simpleca-*
-simpleca_*
-simpleca.exe
-simpleca.exe.manifest
+# Binary
+/simpleca
+/simpleca-*
+/simpleca_*
+/simpleca.exe
+/simpleca.exe.manifest
+*.exe
+
+# Builder
+/.makerc
 
 *.o
 *.out
@@ -11,6 +16,8 @@ simpleca.exe.manifest
 *.csr
 *.crt
 *.conf
+key.pem
+cert.pem
 .vscode/
 
 # OS specific

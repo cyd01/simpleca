@@ -31,7 +31,7 @@ Run 'simpleca COMMAND -h' for more informations on a command
 `)
 }
 
-func Main() {
+func Main(args []string) {
 	if len(os.Args) <= 1 {
 		usage()
 	} else {
