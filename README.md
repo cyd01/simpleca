@@ -88,6 +88,8 @@ go get && go mod tidy && go build
 docker build . --file Dockerfile --tag simpleca
 ```
 
+A pre-built image is also available at <https://hub.docker.com/repository/docker/cyd01/simpleca>.
+
 ## How to use command-line mode client
 
 ### How to create a certificate authority
