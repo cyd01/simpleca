@@ -68,7 +68,7 @@ func Create(args []string) {
 			fmt.Fprintln(os.Stderr, "Loading CA private key")
 			privateKey, err := key.LoadPrivateKeyFile(*privKey, *passphrase)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, err.Error())
+				fmt.Fprint(os.Stderr, err.Error())
 				os.Exit(1)
 			}
 			fmt.Fprintln(os.Stderr, "Generating CA certificate")
@@ -81,12 +81,12 @@ func Create(args []string) {
 			fmt.Fprintln(os.Stderr, "Generating CA private key")
 			privateKey, err := key.GenerateRSAKey(*size)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, err.Error())
+				fmt.Fprint(os.Stderr, err.Error())
 				os.Exit(1)
 			}
 			err = key.WriteRSAKeyFile(privateKey, *passphrase, *privKey)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, err.Error())
+				fmt.Fprint(os.Stderr, err.Error())
 				os.Exit(1)
 			}
 			fmt.Fprintln(os.Stderr, "Generating CA certificate")
@@ -127,15 +127,22 @@ func GenerateCACertBytes(CN, C, ST, L, O, OU, SA, PC string, key any, days int) 
 		SignatureAlgorithm: x509.SHA256WithRSA,
 		NotBefore:          time.Now(),
 		NotAfter:           time.Now().AddDate(0, 0, days),
-		KeyUsage:           x509.KeyUsageDigitalSignature | x509.KeyUsageCRLSign | x509.KeyUsageCertSign | x509.KeyUsageKeyAgreement,
+		KeyUsage:           x509.KeyUsageDigitalSignature | x509.KeyUsageContentCommitment | x509.KeyUsageKeyEncipherment | x509.KeyUsageDataEncipherment | x509.KeyUsageKeyAgreement | x509.KeyUsageCertSign | x509.KeyUsageCRLSign | x509.KeyUsageEncipherOnly | x509.KeyUsageDecipherOnly,
 		ExtKeyUsage: []x509.ExtKeyUsage{
 			x509.ExtKeyUsageAny,
-			x509.ExtKeyUsageClientAuth,
 			x509.ExtKeyUsageServerAuth,
+			x509.ExtKeyUsageClientAuth,
 			x509.ExtKeyUsageCodeSigning,
 			x509.ExtKeyUsageEmailProtection,
+			x509.ExtKeyUsageIPSECEndSystem,
+			x509.ExtKeyUsageIPSECTunnel,
+			x509.ExtKeyUsageIPSECUser,
 			x509.ExtKeyUsageTimeStamping,
 			x509.ExtKeyUsageOCSPSigning,
+			x509.ExtKeyUsageMicrosoftServerGatedCrypto,
+			x509.ExtKeyUsageNetscapeServerGatedCrypto,
+			x509.ExtKeyUsageMicrosoftCommercialCodeSigning,
+			x509.ExtKeyUsageMicrosoftKernelCodeSigning,
 		},
 		IsCA:                  true,
 		BasicConstraintsValid: true,
@@ -163,8 +170,6 @@ func GenerateCACertBytes(CN, C, ST, L, O, OU, SA, PC string, key any, days int) 
 	}
 	publicKey := key.(crypto.Signer).Public()
 	ca.PublicKey = publicKey
-	ca.KeyUsage = x509.KeyUsageDigitalSignature | x509.KeyUsageCRLSign | x509.KeyUsageCertSign
-	ca.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth}
 
 	return x509.CreateCertificate(rand.Reader, ca, ca, publicKey, key)
 }
@@ -190,7 +195,7 @@ func GenerateCACertStream(CN, C, ST, L, O, OU, SA, PC string, key any, days int,
 	} else {
 		err = pem.Encode(file, certBlock)
 		if err != nil {
-			return errors.New("Error when encode private pem: " + err.Error())
+			return errors.New("error when encode private pem: " + err.Error())
 		}
 		return nil
 	}
@@ -204,7 +209,7 @@ func GenerateCACertFile(CN, C, ST, L, O, OU, SA, PC string, key any, days int, f
 	} else {
 		certPem, err = os.Create(filename)
 		if err != nil {
-			return errors.New("Error when creating file")
+			return errors.New("error when creating file")
 		}
 		defer certPem.Close()
 	}
