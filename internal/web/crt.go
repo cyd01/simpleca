@@ -107,7 +107,7 @@ func Crt(w http.ResponseWriter, r *http.Request) {
 	csrBlock := csr.ConvertCSRToBlock(ccsr)
 	csrBytes := pem.EncodeToMemory(csrBlock)
 
-	ccrt, err := ca.CASign(ccsr, days, CaCert, CaKey)
+	ccrt, err := ca.CASign(ccsr, days, CaCert, CaKey, CaCertURL)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Can not sign certificate signing request"))

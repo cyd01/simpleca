@@ -26,9 +26,10 @@ Options:`)
 
 func Sign(args []string) {
 
-	caKeyFile := f.String("ca-key", "ca.key", "Private key of the certificate authority")
-	caPassphrase := f.String("ca-pass", "", "Private key passphrase of the certificate authority")
-	caCertFile := f.String("ca-cert", "ca.crt", "Certificate of the certificate authority")
+	caKeyFile := f.String("ca-key", "ca.key", "Private key of the certificates authority")
+	caPassphrase := f.String("ca-pass", "", "Private key passphrase of the certificates authority")
+	caCertFile := f.String("ca-cert", "ca.crt", "Certificate of the certificates authority")
+	caCertURL := f.String("issuer-cert-url", "", "URL of the certificates authority's certificate")
 
 	days := f.Int("days", 3650, "Not valid after days")
 	out := f.StringP("out", "c", "-", "Output file (- for standard output)")
@@ -71,7 +72,7 @@ func Sign(args []string) {
 			os.Exit(1)
 		}
 
-		crt, err := CASign(csr, *days, caCert, caKey)
+		crt, err := CASign(csr, *days, caCert, caKey, *caCertURL)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "Unable to sign certificate "+err.Error())
 			os.Exit(1)
@@ -83,7 +84,7 @@ func Sign(args []string) {
 }
 
 // Sign CSR with CA
-func CASign(csr *x509.CertificateRequest, days int, ca *x509.Certificate, caPrivKey any) (*x509.Certificate, error) {
+func CASign(csr *x509.CertificateRequest, days int, ca *x509.Certificate, caPrivKey any, caCertURL string) (*x509.Certificate, error) {
 	var err error
 	if err = csr.CheckSignature(); err != nil {
 		return nil, err
@@ -107,6 +108,9 @@ func CASign(csr *x509.CertificateRequest, days int, ca *x509.Certificate, caPriv
 		EmailAddresses:     csr.EmailAddresses,
 		IPAddresses:        csr.IPAddresses,
 		URIs:               csr.URIs,
+	}
+	if len(caCertURL) > 0 {
+		certTemplate.IssuingCertificateURL = []string{caCertURL}
 	}
 	//certTemplate.PublicKeyAlgorithm = csr.PublicKeyAlgorithm
 	crtBytes, err := x509.CreateCertificate(rand.Reader, &certTemplate, ca, csr.PublicKey, caPrivKey)

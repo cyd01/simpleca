@@ -11,6 +11,7 @@ SIMPLECA_ST=${ST:-France}
 SIMPLECA_L=${L:-Paris}
 SIMPLECA_O=${O:-Orga}
 SIMPLECA_OU=${OU:-Unit}
+SIMPLECA_ISSUER_CERT_URL=${ISSUER_CERT_URL:-}
 
 if [ ! -f /ca/ca.key -o ! -f /ca/ca.crt ] ; then
   echo "Generating Certificate Authority"

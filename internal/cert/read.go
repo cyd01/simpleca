@@ -142,6 +142,12 @@ func PrintCert(cert *x509.Certificate) {
 		fmt.Print("Decipher Only, ")
 	}
 	fmt.Println("")
+
+	if len(cert.IssuingCertificateURL) > 0 {
+		fmt.Println("            Authority Information Access: ")
+		fmt.Println("                CA Issuers - URI:", strings.Join(cert.IssuingCertificateURL, ","))
+	}
+
 	if len(cert.DNSNames) > 0 {
 		fmt.Println("        DSNNames:")
 		fmt.Print("            ")

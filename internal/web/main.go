@@ -29,15 +29,16 @@ Usage:  simpleca web COMMAND
 
 Start an automatic certificate authority web server
 
-Commands:
-  
-
+Options:
 `)
+	f.PrintDefaults()
+	os.Exit(1)
 }
 
 var (
-	CaKey  *rsa.PrivateKey   = nil
-	CaCert *x509.Certificate = nil
+	CaKey     *rsa.PrivateKey   = nil
+	CaCert    *x509.Certificate = nil
+	CaCertURL string            = ""
 )
 
 type TKey struct {
@@ -61,13 +62,14 @@ func Main(args []string) {
 	dir := f.String("dir", ".", "Root directory")
 	port := f.String("port", ":80", "Port server")
 
-	caKeyFile := f.String("ca-key", "ca.key", "Private key of the certificate authority")
-	caPassphrase := f.String("ca-pass", "", "Private key passphrase of the certificate authority")
-	caCertFile := f.String("ca-cert", "ca.crt", "Certificate of the certificate authority")
+	caKeyFile := f.String("ca-key", "ca.key", "Private key of the certificates authority")
+	caPassphrase := f.String("ca-pass", "", "Private key passphrase of the certificates authority")
+	caCertFile := f.String("ca-cert", "ca.crt", "Certificate of the certificates authority")
+	caCertURL := f.String("issuer-cert-url", "", "URL of the certificates authority's certificate")
 
 	ssl := f.Bool("ssl", false, "Enable SSL server mode")
-	keyFile := f.String("key", "", "Private key of the certificate authority web server")
-	certFile := f.String("cert", "", "Certificate of the certificate authority web server")
+	keyFile := f.String("key", "", "Private key of the certificates authority web server")
+	certFile := f.String("cert", "", "Certificate of the certificates authority web server")
 
 	c := f.String("C", ConfigC, "Default Country name")
 	st := f.String("ST", ConfigST, "Default State")
@@ -77,6 +79,7 @@ func Main(args []string) {
 	nbDays := f.Int("nbdays", ConfigDays, "Default certificate number of days expiration")
 	size := f.Int("size", ConfigSize, "Default private key size")
 
+	f.SetUsage(usage)
 	f.Parse(args[1:])
 
 	ConfigC = *c
@@ -113,6 +116,10 @@ func Main(args []string) {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
+	}
+
+	if len(*caCertURL) > 0 {
+		CaCertURL = *caCertURL
 	}
 
 	if *ssl {
