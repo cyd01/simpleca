@@ -124,8 +124,8 @@ func GenerateSelfCertBytes(name, C, ST, L, O, OU, SA, PC string, altNames []stri
 		NotAfter:              time.Now().Add(time.Hour * 24 * 180),
 		DNSNames:              altNames,
 		IPAddresses:           ips,
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
 		BasicConstraintsValid: true,
 	}
 	if len(C) > 0 {

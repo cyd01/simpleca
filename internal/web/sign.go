@@ -46,7 +46,7 @@ func Sign(w http.ResponseWriter, r *http.Request) {
 	if ccsr, err := csr.LoadCSR(body); err != nil {
 		http.Error(w, "Unable to convert to certificate signing request: "+err.Error(), http.StatusBadRequest)
 	} else {
-		crt, err := ca.CASign(ccsr, days, CaCert, CaKey)
+		crt, err := ca.CASign(ccsr, days, CaCert, CaKey, CaCertURL)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			w.Write([]byte("Can not sign certificate signing request"))

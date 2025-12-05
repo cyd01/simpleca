@@ -16,6 +16,7 @@
 *.csr
 *.crt
 *.conf
+csr.pem
 key.pem
 cert.pem
 .vscode/
