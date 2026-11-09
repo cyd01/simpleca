@@ -35,24 +35,12 @@ func Crt(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if size < 1024 {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Key size not big enough"))
+	if !checkKeySize(w, size) {
 		return
 	}
-	if size > 16384 {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Key size too much big"))
+	days, ok := requestedDays(w, r)
+	if !ok {
 		return
-	}
-	var days int = 3650
-	s = GetParam(r, "days", strconv.Itoa(ConfigDays))
-	if len(s) > 0 {
-		if days, err = strconv.Atoi(s); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("Wrong number of days"))
-			return
-		}
 	}
 
 	passphrase := GetParam(r, "passphrase", "")
@@ -78,6 +66,11 @@ func Crt(w http.ResponseWriter, r *http.Request) {
 	} else {
 		ips = []net.IP{net.ParseIP(strings.TrimSpace("127.0.0.1"))}
 	}
+
+	if !acquireKeyWork(w) {
+		return
+	}
+	defer releaseKeyWork()
 
 	mkey, err := key.GenerateRSAKey(size)
 	if err != nil {

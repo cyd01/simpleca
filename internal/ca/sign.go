@@ -31,7 +31,7 @@ func Sign(args []string) {
 	caCertFile := f.String("ca-cert", "ca.crt", "Certificate of the certificates authority")
 	caCertURL := f.String("issuer-cert-url", "", "URL of the certificates authority's certificate")
 
-	days := f.Int("days", 3650, "Not valid after days")
+	days := f.Int("days", MaxCertDays, "Not valid after days")
 	out := f.StringP("out", "c", "-", "Output file (- for standard output)")
 
 	f.SetUsage(SignUsage)
@@ -83,9 +83,20 @@ func Sign(args []string) {
 	}
 }
 
+// MaxCertDays is the longest validity, about three years, of a certificate
+// issued by the CA.
+const MaxCertDays = 1095
+
 // Sign CSR with CA
 func CASign(csr *x509.CertificateRequest, days int, ca *x509.Certificate, caPrivKey any, caCertURL string) (*x509.Certificate, error) {
 	var err error
+	if days < 1 || days > MaxCertDays {
+		return nil, fmt.Errorf("validity must be between 1 and %d days", MaxCertDays)
+	}
+	// Checked first so that an oversized key can not make verification expensive.
+	if err = key.CheckPublicKeyStrength(csr.PublicKey); err != nil {
+		return nil, err
+	}
 	if err = csr.CheckSignature(); err != nil {
 		return nil, err
 	}
@@ -95,19 +106,19 @@ func CASign(csr *x509.CertificateRequest, days int, ca *x509.Certificate, caPriv
 		return nil, err
 	}
 	certTemplate := x509.Certificate{
-		SerialNumber:       serialNumber,
-		Subject:            csr.Subject,
-		SignatureAlgorithm: csr.SignatureAlgorithm,
-		Signature:          csr.Signature,
-		NotBefore:          time.Now(),
-		NotAfter:           time.Now().AddDate(0, 0, days),
-		KeyUsage:           x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
-		ExtKeyUsage:        []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
-		PublicKey:          csr.PublicKey,
-		DNSNames:           csr.DNSNames,
-		EmailAddresses:     csr.EmailAddresses,
-		IPAddresses:        csr.IPAddresses,
-		URIs:               csr.URIs,
+		// SignatureAlgorithm is left unset on purpose: it is chosen from the CA
+		// key, never from the algorithm the requester used to sign the CSR.
+		SerialNumber:   serialNumber,
+		Subject:        csr.Subject,
+		NotBefore:      time.Now(),
+		NotAfter:       time.Now().AddDate(0, 0, days),
+		KeyUsage:       x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage:    []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
+		PublicKey:      csr.PublicKey,
+		DNSNames:       csr.DNSNames,
+		EmailAddresses: csr.EmailAddresses,
+		IPAddresses:    csr.IPAddresses,
+		URIs:           csr.URIs,
 	}
 	if len(caCertURL) > 0 {
 		certTemplate.IssuingCertificateURL = []string{caCertURL}

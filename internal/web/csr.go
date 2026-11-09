@@ -5,7 +5,6 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 	"encoding/pem"
-	"io"
 	"net"
 	"net/http"
 	"simpleca/internal/csr"
@@ -21,14 +20,15 @@ func Csr(w http.ResponseWriter, r *http.Request) {
 	}
 
 	r.ParseForm()
-	var err error
 
-	defer r.Body.Close()
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, "Unable ro read private key: "+err.Error(), http.StatusInternalServerError)
+	body, ok := readBody(w, r)
+	if !ok {
 		return
 	}
+	if !acquireKeyWork(w) {
+		return
+	}
+	defer releaseKeyWork()
 
 	passphrase := GetParam(r, "passphrase", "")
 	C := GetParam(r, "C", ConfigC)

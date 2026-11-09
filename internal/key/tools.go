@@ -2,7 +2,6 @@ package key
 
 import (
 	"crypto/ecdsa"
-	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
@@ -44,16 +43,9 @@ func EncodECPrivateKeyToPEM(privateKey *ecdsa.PrivateKey, passphrase string) ([]
 
 // Encode RSA private key to PEM
 func EncodeRSAPrivateKeyToPEM(privateKey *rsa.PrivateKey, passphrase string) ([]byte, error) {
-	block := &pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
-	}
-	if passphrase != "" {
-		var err error
-		block, err = x509.EncryptPEMBlock(rand.Reader, block.Type, block.Bytes, []byte(passphrase), x509.PEMCipherAES256)
-		if err != nil {
-			return nil, err
-		}
+	block, err := ConvertRSAKeyToBlock(privateKey, passphrase)
+	if err != nil {
+		return nil, err
 	}
 	return pem.EncodeToMemory(block), nil
 }

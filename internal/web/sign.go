@@ -3,13 +3,11 @@ package web
 import (
 	"encoding/json"
 	"encoding/pem"
-	"io"
 	"net/http"
 	"simpleca/internal/ca"
 	"simpleca/internal/cert"
 	"simpleca/internal/csr"
 	"simpleca/tools"
-	"strconv"
 )
 
 func Sign(w http.ResponseWriter, r *http.Request) {
@@ -19,27 +17,12 @@ func Sign(w http.ResponseWriter, r *http.Request) {
 	}
 
 	r.ParseForm()
-	var err error
-	var days int = ConfigDays
-	q := r.URL.Query()
-	s := q.Get("days")
-	if len(s) > 0 {
-		if days, err = strconv.Atoi(s); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("Wrong number of days"))
-			return
-		}
-	}
-	if days < 1 {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Number of days too small"))
+	days, ok := requestedDays(w, r)
+	if !ok {
 		return
 	}
-	// Reading the request body
-	defer r.Body.Close()
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, "Unable ro read request: "+err.Error(), http.StatusInternalServerError)
+	body, ok := readBody(w, r)
+	if !ok {
 		return
 	}
 
@@ -48,8 +31,7 @@ func Sign(w http.ResponseWriter, r *http.Request) {
 	} else {
 		crt, err := ca.CASign(ccsr, days, CaCert, CaKey, CaCertURL)
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("Can not sign certificate signing request"))
+			http.Error(w, "Can not sign certificate signing request: "+err.Error(), http.StatusBadRequest)
 			return
 		}
 		bytes := pem.EncodeToMemory(cert.ConvertCertToBlock(crt))

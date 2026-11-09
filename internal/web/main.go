@@ -35,6 +35,9 @@ Options:
 	os.Exit(1)
 }
 
+// caValidityDays is the lifetime of a CA certificate created at startup.
+const caValidityDays = 3650
+
 var (
 	CaKey     *rsa.PrivateKey   = nil
 	CaCert    *x509.Certificate = nil
@@ -59,7 +62,7 @@ type Resp struct {
 }
 
 func Main(args []string) {
-	dir := f.String("dir", ".", "Root directory")
+	dir := f.String("dir", "", "Root directory of static files (none served if empty; must not contain private keys)")
 	port := f.String("port", ":80", "Port server")
 
 	caKeyFile := f.String("ca-key", "ca.key", "Private key of the certificates authority")
@@ -90,6 +93,35 @@ func Main(args []string) {
 	ConfigDays = *nbDays
 	ConfigSize = *size
 
+	if ConfigDays < 1 || ConfigDays > ca.MaxCertDays {
+		fmt.Fprintf(os.Stderr, "nbdays must be between 1 and %d\n", ca.MaxCertDays)
+		os.Exit(1)
+	}
+	if ConfigSize < key.MinRSABits {
+		fmt.Fprintf(os.Stderr, "size must be at least %d\n", key.MinRSABits)
+		os.Exit(1)
+	}
+	if ConfigSize > maxKeySize {
+		maxKeySize = ConfigSize
+	}
+
+	if len(*dir) > 0 {
+		for _, file := range []string{*caKeyFile, *keyFile} {
+			if len(file) == 0 {
+				continue
+			}
+			inside, err := insideDir(file, *dir)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "Can not check location of private key:", err)
+				os.Exit(1)
+			}
+			if inside {
+				fmt.Fprintf(os.Stderr, "Refusing to start: private key %s is inside the served directory %s\n", file, *dir)
+				os.Exit(1)
+			}
+		}
+	}
+
 	var err error
 
 	if b, _ := tools.Exists(*caKeyFile); !b {
@@ -107,7 +139,7 @@ func Main(args []string) {
 
 	if b, _ := tools.Exists(*caCertFile); !b {
 		fmt.Fprintln(os.Stderr, "Certificate authority certificate does not exist, creating", *caCertFile)
-		if err := ca.GenerateCACertFile("EasyCA", *c, *st, *l, *o, *ou, "", "", CaKey, *nbDays, *caCertFile); err != nil {
+		if err := ca.GenerateCACertFile("EasyCA", *c, *st, *l, *o, *ou, "", "", CaKey, caValidityDays, *caCertFile); err != nil {
 			fmt.Fprintln(os.Stderr, "Can not create CA certificate file")
 			os.Exit(1)
 		}
@@ -146,17 +178,16 @@ func Main(args []string) {
 	mux.Handle("/sign", Logs(http.HandlerFunc(Sign)))
 	mux.Handle("/ca/ca.crt", Logs(http.HandlerFunc(CaCaCrt)))
 
-	mux.Handle("/", Logs(http.FileServer(http.Dir(*dir))))
+	if len(*dir) > 0 {
+		mux.Handle("/", Logs(http.FileServer(http.Dir(*dir))))
+	}
 
 	if !strings.Contains(*port, ":") {
 		*port = ":" + *port
 	}
 	fmt.Println("Starting web server on port " + *port + " ...")
 
-	var server = &http.Server{
-		Addr:    *port,
-		Handler: mux,
-	}
+	var server = tools.NewHTTPServer(*port, mux, maxBodyBytes)
 	go func() {
 		if *ssl {
 			err = server.ListenAndServeTLS(*certFile, *keyFile)

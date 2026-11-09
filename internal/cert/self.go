@@ -77,31 +77,31 @@ func Self(args []string) {
 			fmt.Fprintln(os.Stderr, "Loading private key")
 			privateKey, err := key.LoadPrivateKeyFile(*privKey, *passphrase)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, err.Error())
+				fmt.Fprint(os.Stderr, err.Error())
 				os.Exit(1)
 			}
 			fmt.Fprintln(os.Stderr, "Generating self-signed certificate")
 			err = GenerateSelfCertFile(CN, C, ST, L, O, OU, SA, PC, altNames, ips, privateKey, *days, *out)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Unable to generate self-signed certificate: "+err.Error())
+				fmt.Fprint(os.Stderr, "Unable to generate self-signed certificate: "+err.Error())
 				os.Exit(1)
 			}
 		} else {
 			fmt.Fprintln(os.Stderr, "Generating private key")
 			privateKey, err := key.GenerateRSAKey(*size)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, err.Error())
+				fmt.Fprint(os.Stderr, err.Error())
 				os.Exit(1)
 			}
 			err = key.WriteRSAKeyFile(privateKey, *passphrase, *privKey)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, err.Error())
+				fmt.Fprint(os.Stderr, err.Error())
 				os.Exit(1)
 			}
 			fmt.Fprintln(os.Stderr, "Generating self-signed certificate")
 			err = GenerateSelfCertFile(CN, C, ST, L, O, OU, SA, PC, altNames, ips, privateKey, *days, *out)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Unable to generate self-signed certificate: "+err.Error())
+				fmt.Fprint(os.Stderr, "Unable to generate self-signed certificate: "+err.Error())
 				os.Exit(1)
 			}
 		}

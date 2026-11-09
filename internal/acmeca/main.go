@@ -21,6 +21,7 @@ import (
 	"path"
 	"simpleca/flags"
 	"simpleca/internal/acme"
+	"simpleca/internal/ca"
 	"simpleca/internal/cert"
 	"simpleca/internal/key"
 	"simpleca/tools"
@@ -67,6 +68,10 @@ const (
 	finalizePath    = "/finalize/"
 	certificatePath = "/certificate/"
 	orderPath       = "/order/"
+
+	maxBodyBytes = 1 << 20
+	// Oldest orders are forgotten beyond this count.
+	maxOrders = 10000
 )
 
 func Main(args []string) {
@@ -86,6 +91,10 @@ func Main(args []string) {
 
 	if *nbDays != 0 {
 		days = *nbDays
+	}
+	if days < 1 || days > ca.MaxCertDays {
+		fmt.Fprintf(os.Stderr, "days must be between 1 and %d\n", ca.MaxCertDays)
+		os.Exit(1)
 	}
 	if b, _ := tools.Exists(*caKeyFile); !b {
 		fmt.Fprintln(os.Stderr, "Certificate authority private key does not exist")
@@ -137,10 +146,11 @@ func Main(args []string) {
 	}
 	fmt.Println("Starting ACME web server on port " + *port + " ...")
 
+	server := tools.NewHTTPServer(*port, mux, maxBodyBytes)
 	if *ssl {
-		log.Fatal(http.ListenAndServeTLS(*port, *certFile, *keyFile, mux))
+		log.Fatal(server.ListenAndServeTLS(*certFile, *keyFile))
 	} else {
-		log.Fatal(http.ListenAndServe(*port, mux))
+		log.Fatal(server.ListenAndServe())
 	}
 
 }
@@ -166,7 +176,9 @@ type jwsobj struct {
 // Variables & Constants
 ////
 
-var orders []*orderCtx
+// ordersMtx guards orders, nextOrderID and the content of every orderCtx.
+var orders = map[int]*orderCtx{}
+var nextOrderID int
 var ordersMtx sync.Mutex
 
 ////
@@ -183,6 +195,10 @@ func createCrt(csrMsg *acme.CSRMessage) ([]byte, error) {
 	csr, err := x509.ParseCertificateRequest(data)
 	if err != nil {
 		fmt.Println("Can not parse CSR")
+		return nil, err
+	}
+
+	if err := key.CheckPublicKeyStrength(csr.PublicKey); err != nil {
 		return nil, err
 	}
 
@@ -241,11 +257,10 @@ func getOrder(r *http.Request) (*orderCtx, error) {
 	ordersMtx.Lock()
 	defer ordersMtx.Unlock()
 
-	if id < len(orders) {
-		return orders[id], nil
-	} else {
-		return nil, errors.New("order not found")
+	if order, found := orders[id]; found {
+		return order, nil
 	}
+	return nil, errors.New("order not found")
 }
 
 func createURL(r *http.Request, path string) string {
@@ -295,19 +310,22 @@ func newOrderHandler(w http.ResponseWriter, r *http.Request) interface{} {
 	}
 
 	ordersMtx.Lock()
-	orderId := strconv.Itoa(len(orders))
-	orders = append(orders, &orderCtx{&order, nil})
-	ordersMtx.Unlock()
-
+	id := nextOrderID
+	nextOrderID++
+	orderId := strconv.Itoa(id)
 	order.Finalize = createURL(r, path.Join(finalizePath, orderId))
 	order.Authorizations = []string{}
 	order.Status = "ready"
+	orders[id] = &orderCtx{&order, nil}
+	delete(orders, id-maxOrders)
+	response := order
+	ordersMtx.Unlock()
 
 	orderURL := createURL(r, path.Join(orderPath, orderId))
 	w.Header().Add("Location", orderURL)
 
 	w.WriteHeader(http.StatusCreated)
-	return order
+	return response
 }
 
 func finalizeHandler(w http.ResponseWriter, r *http.Request) interface{} {
@@ -327,20 +345,24 @@ func finalizeHandler(w http.ResponseWriter, r *http.Request) interface{} {
 		return nil
 	}
 
-	order.crt, err = createCrt(&csrMsg)
+	crt, err := createCrt(&csrMsg)
 	if err != nil {
 		fmt.Println("CreateCrt failed: ", err)
 		http.Error(w, "createCrt failed", http.StatusInternalServerError)
 		return nil
 	}
 
+	ordersMtx.Lock()
+	order.crt = crt
 	order.obj.Status = acme.StatusValid
 	order.obj.Certificate = createURL(r, path.Join(certificatePath, id))
+	response := *order.obj
+	ordersMtx.Unlock()
 
 	orderURL := createURL(r, path.Join(orderPath, id))
 	w.Header().Add("Location", orderURL)
 
-	return order.obj
+	return response
 }
 
 func orderHandler(w http.ResponseWriter, r *http.Request) interface{} {
@@ -351,7 +373,9 @@ func orderHandler(w http.ResponseWriter, r *http.Request) interface{} {
 		return nil
 	}
 
-	return order.obj
+	ordersMtx.Lock()
+	defer ordersMtx.Unlock()
+	return *order.obj
 }
 
 func certHandler(w http.ResponseWriter, r *http.Request) {
@@ -362,7 +386,11 @@ func certHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = pem.Encode(w, &pem.Block{Type: "CERTIFICATE", Bytes: order.crt})
+	ordersMtx.Lock()
+	crt := order.crt
+	ordersMtx.Unlock()
+
+	err = pem.Encode(w, &pem.Block{Type: "CERTIFICATE", Bytes: crt})
 	if err != nil {
 		fmt.Println("PEM encoding failed")
 		http.Error(w, "PEM encoding failed", http.StatusInternalServerError)
