@@ -3,6 +3,7 @@ package acmeca
 import (
 	"bytes"
 	"crypto/rand"
+	"crypto/sha256"
 	"io"
 
 	//	"crypto/ecdsa"
@@ -68,6 +69,8 @@ const (
 	finalizePath    = "/finalize/"
 	certificatePath = "/certificate/"
 	orderPath       = "/order/"
+	accountPath     = "/account/"
+	authzPath       = "/authz/"
 
 	maxBodyBytes = 1 << 20
 	// Oldest orders are forgotten beyond this count.
@@ -140,6 +143,8 @@ func Main(args []string) {
 	mux.Handle(finalizePath, jwtMiddleware(jsonMiddleware(finalizeHandler)))
 	mux.HandleFunc(certificatePath, certHandler)
 	mux.Handle(orderPath, jsonMiddleware(orderHandler))
+	mux.Handle(accountPath, jsonMiddleware(accountGetHandler))
+	mux.Handle(authzPath, jsonMiddleware(authzHandler))
 
 	if !strings.Contains(*port, ":") {
 		*port = ":" + *port
@@ -293,10 +298,96 @@ func nonceHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// accountID derives a stable account id from the JWK in the JWS protected
+// header, so the same account key always maps to the same account URL.
+func accountID(r *http.Request) (string, error) {
+	var jws jwsobj
+	if err := json.NewDecoder(r.Body).Decode(&jws); err != nil {
+		return "", err
+	}
+	protected, err := base64.RawURLEncoding.DecodeString(jws.Protected)
+	if err != nil {
+		return "", err
+	}
+	var hdr struct {
+		JWK json.RawMessage `json:"jwk"`
+	}
+	if err := json.Unmarshal(protected, &hdr); err != nil {
+		return "", err
+	}
+	if len(hdr.JWK) == 0 {
+		return "", errors.New("no jwk in protected header")
+	}
+	sum := sha256.Sum256(hdr.JWK)
+	return base64.RawURLEncoding.EncodeToString(sum[:16]), nil
+}
+
 func accountHandler(w http.ResponseWriter, r *http.Request) interface{} {
+	id, err := accountID(r)
+	if err != nil {
+		fmt.Println("Bad account request:", err)
+		http.Error(w, "Bad Request", http.StatusBadRequest)
+		return nil
+	}
+
+	// RFC 8555 7.3: the account URL is returned in the Location header.
+	w.Header().Add("Location", createURL(r, path.Join(accountPath, id)))
+	w.WriteHeader(http.StatusCreated)
 	return acme.Account{
 		Status: acme.StatusValid,
-		Orders: createURL(r, "orders"),
+		Orders: createURL(r, "/orders"),
+	}
+}
+
+// accountGetHandler answers POST-as-GET / update requests on an account URL.
+// Accounts are not persisted, so every account is reported as valid.
+func accountGetHandler(w http.ResponseWriter, r *http.Request) interface{} {
+	return acme.Account{
+		Status: acme.StatusValid,
+		Orders: createURL(r, "/orders"),
+	}
+}
+
+// authzHandler serves /authz/<orderID>/<index>. This CA performs no domain
+// validation, so every authorization is reported as already valid.
+func authzHandler(w http.ResponseWriter, r *http.Request) interface{} {
+	parts := strings.Split(strings.TrimPrefix(r.URL.Path, authzPath), "/")
+	if len(parts) != 2 {
+		http.Error(w, "Not Found", http.StatusNotFound)
+		return nil
+	}
+	orderID, err1 := strconv.Atoi(parts[0])
+	idx, err2 := strconv.Atoi(parts[1])
+	if err1 != nil || err2 != nil {
+		http.Error(w, "Not Found", http.StatusNotFound)
+		return nil
+	}
+
+	ordersMtx.Lock()
+	order, found := orders[orderID]
+	var ident acme.Identifier
+	if found && idx >= 0 && idx < len(order.obj.Identifiers) {
+		ident = order.obj.Identifiers[idx]
+	} else {
+		found = false
+	}
+	ordersMtx.Unlock()
+
+	if !found {
+		http.Error(w, "Not Found", http.StatusNotFound)
+		return nil
+	}
+
+	wildcard := strings.HasPrefix(ident.Value, "*.")
+	if wildcard {
+		ident.Value = strings.TrimPrefix(ident.Value, "*.")
+	}
+	return acme.Authorization{
+		Status:     acme.StatusValid,
+		Expires:    time.Now().AddDate(0, 0, days),
+		Identifier: ident,
+		Challenges: []acme.Challenge{},
+		Wildcard:   wildcard,
 	}
 }
 
@@ -314,7 +405,10 @@ func newOrderHandler(w http.ResponseWriter, r *http.Request) interface{} {
 	nextOrderID++
 	orderId := strconv.Itoa(id)
 	order.Finalize = createURL(r, path.Join(finalizePath, orderId))
-	order.Authorizations = []string{}
+	order.Authorizations = make([]string, len(order.Identifiers))
+	for i := range order.Identifiers {
+		order.Authorizations[i] = createURL(r, path.Join(authzPath, orderId, strconv.Itoa(i)))
+	}
 	order.Status = "ready"
 	orders[id] = &orderCtx{&order, nil}
 	delete(orders, id-maxOrders)
@@ -390,12 +484,25 @@ func certHandler(w http.ResponseWriter, r *http.Request) {
 	crt := order.crt
 	ordersMtx.Unlock()
 
-	err = pem.Encode(w, &pem.Block{Type: "CERTIFICATE", Bytes: crt})
-	if err != nil {
+	if crt == nil {
+		http.Error(w, "Not Found", http.StatusNotFound)
+		return
+	}
+
+	// Return the full chain (leaf followed by the CA certificate).
+	var buf bytes.Buffer
+	if err := pem.Encode(&buf, &pem.Block{Type: "CERTIFICATE", Bytes: crt}); err != nil {
 		fmt.Println("PEM encoding failed")
 		http.Error(w, "PEM encoding failed", http.StatusInternalServerError)
 		return
 	}
+	if err := pem.Encode(&buf, &pem.Block{Type: "CERTIFICATE", Bytes: CaCert.Raw}); err != nil {
+		fmt.Println("PEM encoding failed")
+		http.Error(w, "PEM encoding failed", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/pem-certificate-chain")
+	w.Write(buf.Bytes())
 }
 
 ////
