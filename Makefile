@@ -11,7 +11,7 @@ all : help
 -include ~/.makerc
 
 ## Go definition
-ARCH ?=386
+ARCH ?=amd64
 CGO ?=0
 
 ## Go compiler
