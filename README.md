@@ -311,7 +311,7 @@ Usage of simpleca:
   -ca-pass string
         Private key passphrase of the certificate authority
   -dir string
-        Root directory (default .)
+        Root directory of static files (none served if empty; must not contain private keys)
   -port string
         Port server (default :80)
 ```
@@ -321,6 +321,10 @@ Example:
 ```bash
 simpleca web -ca-cert ca.crt -ca-key ca.key
 ```
+
+Certificates are limited to 1095 days. RSA keys must be at least 2048 bits, and the web API generates keys of at most 4096 bits unless `-size` is larger.
+
+The web API has no authentication. Only expose it to a trusted network.
 
 ### How to get the certificate authority liveness status
 

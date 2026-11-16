@@ -45,8 +45,8 @@ paths:
           schema:
             type: integer
             format: int32
-            minimum: 1024
-            maximum: 16384
+            minimum: 2048
+            maximum: 4096
           example: 2048
         - in: query
           name: type
@@ -306,8 +306,8 @@ paths:
           schema:
             type: integer
             format: int32
-            minimum: 1024
-            maximum: 16384
+            minimum: 2048
+            maximum: 4096
           example: 2048
         - in: query
           name: type

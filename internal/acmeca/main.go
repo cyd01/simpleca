@@ -3,6 +3,8 @@ package acmeca
 import (
 	"bytes"
 	"crypto/rand"
+	"crypto/sha256"
+	"errors"
 	"io"
 
 	//	"crypto/ecdsa"
@@ -12,7 +14,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
-	"errors"
 	"fmt"
 	"log"
 	"math/big"
@@ -21,6 +22,7 @@ import (
 	"path"
 	"simpleca/flags"
 	"simpleca/internal/acme"
+	"simpleca/internal/ca"
 	"simpleca/internal/cert"
 	"simpleca/internal/key"
 	"simpleca/tools"
@@ -67,6 +69,12 @@ const (
 	finalizePath    = "/finalize/"
 	certificatePath = "/certificate/"
 	orderPath       = "/order/"
+	accountPath     = "/account/"
+	authzPath       = "/authz/"
+
+	maxBodyBytes = 1 << 20
+	// Oldest orders are forgotten beyond this count.
+	maxOrders = 10000
 )
 
 func Main(args []string) {
@@ -86,6 +94,10 @@ func Main(args []string) {
 
 	if *nbDays != 0 {
 		days = *nbDays
+	}
+	if days < 1 || days > ca.MaxCertDays {
+		fmt.Fprintf(os.Stderr, "days must be between 1 and %d\n", ca.MaxCertDays)
+		os.Exit(1)
 	}
 	if b, _ := tools.Exists(*caKeyFile); !b {
 		fmt.Fprintln(os.Stderr, "Certificate authority private key does not exist")
@@ -131,16 +143,19 @@ func Main(args []string) {
 	mux.Handle(finalizePath, jwtMiddleware(jsonMiddleware(finalizeHandler)))
 	mux.HandleFunc(certificatePath, certHandler)
 	mux.Handle(orderPath, jsonMiddleware(orderHandler))
+	mux.Handle(accountPath, jsonMiddleware(accountGetHandler))
+	mux.Handle(authzPath, jsonMiddleware(authzHandler))
 
 	if !strings.Contains(*port, ":") {
 		*port = ":" + *port
 	}
 	fmt.Println("Starting ACME web server on port " + *port + " ...")
 
+	server := tools.NewHTTPServer(*port, mux, maxBodyBytes)
 	if *ssl {
-		log.Fatal(http.ListenAndServeTLS(*port, *certFile, *keyFile, mux))
+		log.Fatal(server.ListenAndServeTLS(*certFile, *keyFile))
 	} else {
-		log.Fatal(http.ListenAndServe(*port, mux))
+		log.Fatal(server.ListenAndServe())
 	}
 
 }
@@ -166,7 +181,9 @@ type jwsobj struct {
 // Variables & Constants
 ////
 
-var orders []*orderCtx
+// ordersMtx guards orders, nextOrderID and the content of every orderCtx.
+var orders = map[int]*orderCtx{}
+var nextOrderID int
 var ordersMtx sync.Mutex
 
 ////
@@ -183,6 +200,10 @@ func createCrt(csrMsg *acme.CSRMessage) ([]byte, error) {
 	csr, err := x509.ParseCertificateRequest(data)
 	if err != nil {
 		fmt.Println("Can not parse CSR")
+		return nil, err
+	}
+
+	if err := key.CheckPublicKeyStrength(csr.PublicKey); err != nil {
 		return nil, err
 	}
 
@@ -241,11 +262,10 @@ func getOrder(r *http.Request) (*orderCtx, error) {
 	ordersMtx.Lock()
 	defer ordersMtx.Unlock()
 
-	if id < len(orders) {
-		return orders[id], nil
-	} else {
-		return nil, errors.New("order not found")
+	if order, found := orders[id]; found {
+		return order, nil
 	}
+	return nil, errors.New("order not found")
 }
 
 func createURL(r *http.Request, path string) string {
@@ -278,10 +298,96 @@ func nonceHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// accountID derives a stable account id from the JWK in the JWS protected
+// header, so the same account key always maps to the same account URL.
+func accountID(r *http.Request) (string, error) {
+	var jws jwsobj
+	if err := json.NewDecoder(r.Body).Decode(&jws); err != nil {
+		return "", err
+	}
+	protected, err := base64.RawURLEncoding.DecodeString(jws.Protected)
+	if err != nil {
+		return "", err
+	}
+	var hdr struct {
+		JWK json.RawMessage `json:"jwk"`
+	}
+	if err := json.Unmarshal(protected, &hdr); err != nil {
+		return "", err
+	}
+	if len(hdr.JWK) == 0 {
+		return "", errors.New("no jwk in protected header")
+	}
+	sum := sha256.Sum256(hdr.JWK)
+	return base64.RawURLEncoding.EncodeToString(sum[:16]), nil
+}
+
 func accountHandler(w http.ResponseWriter, r *http.Request) interface{} {
+	id, err := accountID(r)
+	if err != nil {
+		fmt.Println("Bad account request:", err)
+		http.Error(w, "Bad Request", http.StatusBadRequest)
+		return nil
+	}
+
+	// RFC 8555 7.3: the account URL is returned in the Location header.
+	w.Header().Add("Location", createURL(r, path.Join(accountPath, id)))
+	w.WriteHeader(http.StatusCreated)
 	return acme.Account{
 		Status: acme.StatusValid,
-		Orders: createURL(r, "orders"),
+		Orders: createURL(r, "/orders"),
+	}
+}
+
+// accountGetHandler answers POST-as-GET / update requests on an account URL.
+// Accounts are not persisted, so every account is reported as valid.
+func accountGetHandler(w http.ResponseWriter, r *http.Request) interface{} {
+	return acme.Account{
+		Status: acme.StatusValid,
+		Orders: createURL(r, "/orders"),
+	}
+}
+
+// authzHandler serves /authz/<orderID>/<index>. This CA performs no domain
+// validation, so every authorization is reported as already valid.
+func authzHandler(w http.ResponseWriter, r *http.Request) interface{} {
+	parts := strings.Split(strings.TrimPrefix(r.URL.Path, authzPath), "/")
+	if len(parts) != 2 {
+		http.Error(w, "Not Found", http.StatusNotFound)
+		return nil
+	}
+	orderID, err1 := strconv.Atoi(parts[0])
+	idx, err2 := strconv.Atoi(parts[1])
+	if err1 != nil || err2 != nil {
+		http.Error(w, "Not Found", http.StatusNotFound)
+		return nil
+	}
+
+	ordersMtx.Lock()
+	order, found := orders[orderID]
+	var ident acme.Identifier
+	if found && idx >= 0 && idx < len(order.obj.Identifiers) {
+		ident = order.obj.Identifiers[idx]
+	} else {
+		found = false
+	}
+	ordersMtx.Unlock()
+
+	if !found {
+		http.Error(w, "Not Found", http.StatusNotFound)
+		return nil
+	}
+
+	wildcard := strings.HasPrefix(ident.Value, "*.")
+	if wildcard {
+		ident.Value = strings.TrimPrefix(ident.Value, "*.")
+	}
+	return acme.Authorization{
+		Status:     acme.StatusValid,
+		Expires:    time.Now().AddDate(0, 0, days),
+		Identifier: ident,
+		Challenges: []acme.Challenge{},
+		Wildcard:   wildcard,
 	}
 }
 
@@ -295,19 +401,25 @@ func newOrderHandler(w http.ResponseWriter, r *http.Request) interface{} {
 	}
 
 	ordersMtx.Lock()
-	orderId := strconv.Itoa(len(orders))
-	orders = append(orders, &orderCtx{&order, nil})
-	ordersMtx.Unlock()
-
+	id := nextOrderID
+	nextOrderID++
+	orderId := strconv.Itoa(id)
 	order.Finalize = createURL(r, path.Join(finalizePath, orderId))
-	order.Authorizations = []string{}
+	order.Authorizations = make([]string, len(order.Identifiers))
+	for i := range order.Identifiers {
+		order.Authorizations[i] = createURL(r, path.Join(authzPath, orderId, strconv.Itoa(i)))
+	}
 	order.Status = "ready"
+	orders[id] = &orderCtx{&order, nil}
+	delete(orders, id-maxOrders)
+	response := order
+	ordersMtx.Unlock()
 
 	orderURL := createURL(r, path.Join(orderPath, orderId))
 	w.Header().Add("Location", orderURL)
 
 	w.WriteHeader(http.StatusCreated)
-	return order
+	return response
 }
 
 func finalizeHandler(w http.ResponseWriter, r *http.Request) interface{} {
@@ -327,20 +439,24 @@ func finalizeHandler(w http.ResponseWriter, r *http.Request) interface{} {
 		return nil
 	}
 
-	order.crt, err = createCrt(&csrMsg)
+	crt, err := createCrt(&csrMsg)
 	if err != nil {
 		fmt.Println("CreateCrt failed: ", err)
 		http.Error(w, "createCrt failed", http.StatusInternalServerError)
 		return nil
 	}
 
+	ordersMtx.Lock()
+	order.crt = crt
 	order.obj.Status = acme.StatusValid
 	order.obj.Certificate = createURL(r, path.Join(certificatePath, id))
+	response := *order.obj
+	ordersMtx.Unlock()
 
 	orderURL := createURL(r, path.Join(orderPath, id))
 	w.Header().Add("Location", orderURL)
 
-	return order.obj
+	return response
 }
 
 func orderHandler(w http.ResponseWriter, r *http.Request) interface{} {
@@ -351,7 +467,9 @@ func orderHandler(w http.ResponseWriter, r *http.Request) interface{} {
 		return nil
 	}
 
-	return order.obj
+	ordersMtx.Lock()
+	defer ordersMtx.Unlock()
+	return *order.obj
 }
 
 func certHandler(w http.ResponseWriter, r *http.Request) {
@@ -362,12 +480,29 @@ func certHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = pem.Encode(w, &pem.Block{Type: "CERTIFICATE", Bytes: order.crt})
-	if err != nil {
+	ordersMtx.Lock()
+	crt := order.crt
+	ordersMtx.Unlock()
+
+	if crt == nil {
+		http.Error(w, "Not Found", http.StatusNotFound)
+		return
+	}
+
+	// Return the full chain (leaf followed by the CA certificate).
+	var buf bytes.Buffer
+	if err := pem.Encode(&buf, &pem.Block{Type: "CERTIFICATE", Bytes: crt}); err != nil {
 		fmt.Println("PEM encoding failed")
 		http.Error(w, "PEM encoding failed", http.StatusInternalServerError)
 		return
 	}
+	if err := pem.Encode(&buf, &pem.Block{Type: "CERTIFICATE", Bytes: CaCert.Raw}); err != nil {
+		fmt.Println("PEM encoding failed")
+		http.Error(w, "PEM encoding failed", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/pem-certificate-chain")
+	w.Write(buf.Bytes())
 }
 
 ////

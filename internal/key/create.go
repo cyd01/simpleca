@@ -38,12 +38,12 @@ func Create(args []string) {
 		switch *ktype {
 		case "rsa":
 			if err := GenerateRSAKeyFile(*size, *passphrase, *out); err != nil {
-				fmt.Fprintf(os.Stderr, err.Error())
+				fmt.Fprint(os.Stderr, err.Error())
 				os.Exit(1)
 			}
 		case "ecdsa":
 			if err := GenerateECDSAKeyFile(*passphrase, *out); err != nil {
-				fmt.Fprintf(os.Stderr, err.Error())
+				fmt.Fprint(os.Stderr, err.Error())
 				os.Exit(1)
 			}
 		default:
@@ -53,7 +53,24 @@ func Create(args []string) {
 	}
 }
 
+// createKeyFile opens a private key file for writing, readable by its owner
+// only, including when it replaces an existing file.
+func createKeyFile(filename string) (*os.File, error) {
+	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	if err := file.Chmod(0o600); err != nil {
+		file.Close()
+		return nil, err
+	}
+	return file, nil
+}
+
 func GenerateRSAKey(size int) (*rsa.PrivateKey, error) {
+	if size < MinRSABits {
+		return nil, fmt.Errorf("RSA key size must be at least %d bits", MinRSABits)
+	}
 	if privatekey, err := rsa.GenerateKey(rand.Reader, size); err != nil {
 		return nil, errors.New("Can not generate RSA private key")
 	} else {
@@ -99,7 +116,7 @@ func WriteRSAKeyFile(privatekey *rsa.PrivateKey, passphrase, filename string) er
 	if filename == "-" {
 		file = os.Stdout
 	} else {
-		file, err = os.Create(filename)
+		file, err = createKeyFile(filename)
 		if err != nil {
 			return errors.New("Error when creating file")
 		}
@@ -114,7 +131,7 @@ func WriteECDSAKeyFile(privatekey *ecdsa.PrivateKey, passphrase, filename string
 	if filename == "-" {
 		file = os.Stdout
 	} else {
-		file, err = os.Create(filename)
+		file, err = createKeyFile(filename)
 		if err != nil {
 			return errors.New("Error when creating file")
 		}
@@ -124,40 +141,39 @@ func WriteECDSAKeyFile(privatekey *ecdsa.PrivateKey, passphrase, filename string
 }
 
 func ConvertRSAKeyToBlock(privatekey *rsa.PrivateKey, passphrase string) (*pem.Block, error) {
-	var privateKeyBytes []byte = x509.MarshalPKCS1PrivateKey(privatekey)
-	var privateKeyBlock *pem.Block
-	var err error
 	if passphrase == "" {
-		privateKeyBlock = &pem.Block{
+		return &pem.Block{
 			Type:  "RSA PRIVATE KEY",
-			Bytes: privateKeyBytes,
-		}
-	} else {
-		if privateKeyBlock, err = x509.EncryptPEMBlock(rand.Reader, "RSA PRIVATE KEY", privateKeyBytes, []byte(passphrase), x509.PEMCipherAES256); err != nil {
-			return nil, errors.New("Unable to encrypt private key: " + err.Error())
-		}
+			Bytes: x509.MarshalPKCS1PrivateKey(privatekey),
+		}, nil
 	}
-	return privateKeyBlock, nil
+	return encryptKey(privatekey, passphrase)
 }
 
 func ConvertECDSAKeyToBlock(privatekey *ecdsa.PrivateKey, passphrase string) (*pem.Block, error) {
-	var privateKeyBytes []byte
-	var privateKeyBlock *pem.Block
-	var err error
-	if privateKeyBytes, err = x509.MarshalECPrivateKey(privatekey); err != nil {
+	if passphrase != "" {
+		return encryptKey(privatekey, passphrase)
+	}
+	privateKeyBytes, err := x509.MarshalECPrivateKey(privatekey)
+	if err != nil {
 		return nil, errors.New("Can not convert ECDSA to Block: " + err.Error())
 	}
-	if passphrase == "" {
-		privateKeyBlock = &pem.Block{
-			Type:  "EC PRIVATE KEY",
-			Bytes: privateKeyBytes,
-		}
-	} else {
-		if privateKeyBlock, err = x509.EncryptPEMBlock(rand.Reader, "EC PRIVATE KEY", privateKeyBytes, []byte(passphrase), x509.PEMCipherAES256); err != nil {
-			return nil, errors.New("Unable to encrypt private key: " + err.Error())
-		}
+	return &pem.Block{
+		Type:  "EC PRIVATE KEY",
+		Bytes: privateKeyBytes,
+	}, nil
+}
+
+func encryptKey(privatekey any, passphrase string) (*pem.Block, error) {
+	der, err := x509.MarshalPKCS8PrivateKey(privatekey)
+	if err != nil {
+		return nil, errors.New("Unable to encode private key: " + err.Error())
 	}
-	return privateKeyBlock, nil
+	block, err := encryptPKCS8(der, passphrase)
+	if err != nil {
+		return nil, errors.New("Unable to encrypt private key: " + err.Error())
+	}
+	return block, nil
 }
 
 func GenerateRSAKeyBlock(size int, passphrase string) (*pem.Block, error) {
@@ -216,7 +232,7 @@ func GenerateRSAKeyFile(size int, passphrase string, filename string) error {
 	if filename == "-" {
 		privatePem = os.Stdout
 	} else {
-		privatePem, err = os.Create(filename)
+		privatePem, err = createKeyFile(filename)
 		if err != nil {
 			return errors.New("Error when creating file")
 		}
@@ -231,7 +247,7 @@ func GenerateECDSAKeyFile(passphrase string, filename string) error {
 	if filename == "-" {
 		privatePem = os.Stdout
 	} else {
-		privatePem, err = os.Create(filename)
+		privatePem, err = createKeyFile(filename)
 		if err != nil {
 			return errors.New("Error when creating file")
 		}

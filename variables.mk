@@ -2,7 +2,7 @@
 TARGET ?= simpleca
 
 ## Run additional parameters
-RUN_PARAMETERS ?= web -dir . -port 8080
+RUN_PARAMETERS ?= web -port 8080
 
 ## Docker target image
 DOCKER_IMAGE ?= $(TARGET)

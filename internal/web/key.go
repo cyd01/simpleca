@@ -30,16 +30,13 @@ func Key(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if size < 1024 {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Key size not big enough"))
+	if !checkKeySize(w, size) {
 		return
 	}
-	if size > 16384 {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Key size too much big"))
+	if !acquireKeyWork(w) {
 		return
 	}
+	defer releaseKeyWork()
 
 	passphrase := GetParam(r, "passphrase", "")
 	t := strings.ToLower(GetParam(r, "type", ConfigKeyType))

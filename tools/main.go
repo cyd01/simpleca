@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"net/http"
 	"os"
 	"regexp"
 	"strconv"
@@ -174,6 +175,20 @@ func RandomString(pattern string, n int) string {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
 	return string(b)
+}
+
+// NewHTTPServer returns a server with timeouts and a request body limit. The
+// write timeout leaves room for slow RSA key generation.
+func NewHTTPServer(addr string, handler http.Handler, maxBodyBytes int64) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           http.MaxBytesHandler(handler, maxBodyBytes),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      5 * time.Minute,
+		IdleTimeout:       2 * time.Minute,
+		MaxHeaderBytes:    64 << 10,
+	}
 }
 
 // Test host for opened ports

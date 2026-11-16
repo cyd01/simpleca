@@ -1,7 +1,7 @@
 FROM    golang AS build
 COPY    . /go/simpleca
 ARG     GOOS=${GOOS:-linux}
-ARG     GOARCH=${GOARCH:-386}
+ARG     GOARCH=${GOARCH:-amd64}
 ARG     CGO_ENABLED=${CGO_ENABLED:-0}
 RUN     cd /go/simpleca && go mod download && go mod tidy && go build ./cmd/simpleca
 

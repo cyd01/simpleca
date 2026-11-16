@@ -148,6 +148,20 @@ func LoadECDSAKey(bytes []byte, passphrase string) (*ecdsa.PrivateKey, error) {
 			} else {
 				return key, errors.New("Can not decode private key")
 			}
+		case encryptedPKCS8Type:
+			der, err := decryptPKCS8(block, passphrase)
+			if err != nil {
+				return nil, err
+			}
+			mkey, err := x509.ParsePKCS8PrivateKey(der)
+			if err != nil {
+				return nil, errDecrypt
+			}
+			ecKey, ok := mkey.(*ecdsa.PrivateKey)
+			if !ok {
+				return nil, errors.New("Unknown private key type")
+			}
+			return ecKey, nil
 		default:
 			return key, errors.New("Unknown private key type")
 		}
@@ -187,20 +201,21 @@ func LoadRSAKey(bytes []byte, passphrase string) (*rsa.PrivateKey, error) {
 		var privateKeyBytes []byte
 		switch block.Type {
 		case "PRIVATE KEY":
-			if mkey, err := x509.ParsePKCS8PrivateKey(block.Bytes); err == nil {
-				switch mkey.(type) {
-				case *rsa.PrivateKey:
-					return mkey.(*rsa.PrivateKey), nil
-				case *ecdsa.PrivateKey:
-					return nil, ECDSA
-				case *ed25519.PrivateKey:
-					return nil, errors.New("ED25519")
-				default:
-					return nil, errors.New("Unknown private key type")
-				}
-			} else {
+			mkey, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+			if err != nil {
 				return key, errors.New("Can not decode private key")
 			}
+			return rsaFromPKCS8(mkey)
+		case encryptedPKCS8Type:
+			der, err := decryptPKCS8(block, passphrase)
+			if err != nil {
+				return nil, err
+			}
+			mkey, err := x509.ParsePKCS8PrivateKey(der)
+			if err != nil {
+				return nil, errDecrypt
+			}
+			return rsaFromPKCS8(mkey)
 		case "RSA PRIVATE KEY":
 			if x509.IsEncryptedPEMBlock(block) {
 				if privateKeyBytes, err = x509.DecryptPEMBlock(block, []byte(passphrase)); err != nil {
@@ -219,4 +234,17 @@ func LoadRSAKey(bytes []byte, passphrase string) (*rsa.PrivateKey, error) {
 		}
 	}
 	return key, nil
+}
+
+func rsaFromPKCS8(mkey any) (*rsa.PrivateKey, error) {
+	switch k := mkey.(type) {
+	case *rsa.PrivateKey:
+		return k, nil
+	case *ecdsa.PrivateKey:
+		return nil, ECDSA
+	case ed25519.PrivateKey:
+		return nil, ED25519
+	default:
+		return nil, errors.New("Unknown private key type")
+	}
 }

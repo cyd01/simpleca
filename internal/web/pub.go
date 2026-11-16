@@ -6,7 +6,6 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
-	"io"
 	"net/http"
 	"simpleca/internal/key"
 	"simpleca/tools"
@@ -18,14 +17,15 @@ func Pub(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	r.ParseForm()
-	var err error
 
-	defer r.Body.Close()
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, "Unable ro read request: "+err.Error(), http.StatusInternalServerError)
+	body, ok := readBody(w, r)
+	if !ok {
 		return
 	}
+	if !acquireKeyWork(w) {
+		return
+	}
+	defer releaseKeyWork()
 
 	passphrase := GetParam(r, "passphrase", "")
 

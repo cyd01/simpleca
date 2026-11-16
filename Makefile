@@ -6,12 +6,12 @@ TARGET=$(notdir $(abspath $(lastword $(MAKEFILE_LIST)/..)))
 all : help
 	@:
 
--include variables.mk
 -include .makerc
 -include ~/.makerc
+-include variables.mk
 
 ## Go definition
-ARCH ?=386
+ARCH ?=amd64
 CGO ?=0
 
 ## Go compiler

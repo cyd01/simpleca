@@ -74,7 +74,7 @@ func Create(args []string) {
 			fmt.Fprintln(os.Stderr, "Generating CA certificate")
 			err = GenerateCACertFile(CN, C, ST, L, O, OU, SA, PC, privateKey, *days, *out)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Unable to generate CA certificate: "+err.Error())
+				fmt.Fprint(os.Stderr, "Unable to generate CA certificate: "+err.Error())
 				os.Exit(1)
 			}
 		} else {
@@ -92,7 +92,7 @@ func Create(args []string) {
 			fmt.Fprintln(os.Stderr, "Generating CA certificate")
 			err = GenerateCACertFile(CN, C, ST, L, O, OU, SA, PC, privateKey, *days, *out)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Unable to generate CA certificate: "+err.Error())
+				fmt.Fprint(os.Stderr, "Unable to generate CA certificate: "+err.Error())
 				os.Exit(1)
 			}
 		}
