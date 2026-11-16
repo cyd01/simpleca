@@ -66,7 +66,7 @@ debug/%:
 .PHONY: clean
 clean:
 	@echo "Cleaning..."
-	-rm -f $(TARGET) $(TARGET)-linux $(TARGET).exe $(TARGET)-darwin main_darwin.go main_windows.go main_linux.go resource.syso $(TARGET).exe.manifest versioninfo.rc bindata.go
+	-rm -f $(TARGET) $(TARGET)-linux $(TARGET).exe $(TARGET)-darwin main_darwin.go main_windows.go main_linux.go resource.syso resource_windows_*.syso $(TARGET).exe.manifest versioninfo.rc bindata.go
 	-rm -f ./cmd/$(TARGET)/$(TARGET)*
 	-@$(DOCKER) image rm -f $(DOCKER_IMAGE):$(DOCKER_IMAGE_TAG) 2> /dev/null || true
 	-@$(DOCKER) container rm -f $(DOCKER_IMAGE) 2> /dev/null || true
@@ -123,7 +123,7 @@ linux: main_linux.go go.mod bindata.go
 ## Compile for Windows target
 main_windows.go :
 	@echo "Generating main_windows.go..."
-	@test -d ./cmd/$(TARGET) && printf '//go:build windows\n// +build windows\n\n//go:generate goversioninfo -icon=$(TARGET).ico -manifest=$(TARGET).exe.manifest\npackage $(TARGET)\n' > main_windows.go || printf '//go:build windows\n// +build windows\n\n//go:generate goversioninfo -icon=$(TARGET).ico -manifest=$(TARGET).exe.manifest\npackage main\n' > main_windows.go
+	@test -d ./cmd/$(TARGET) && printf '//go:build windows\n// +build windows\n\n//go:generate goversioninfo -platform-specific -icon=$(TARGET).ico -manifest=$(TARGET).exe.manifest\n//go:generate rm -f resource.syso\npackage $(TARGET)\n' > main_windows.go || printf '//go:build windows\n// +build windows\n\n//go:generate goversioninfo -platform-specific -icon=$(TARGET).ico -manifest=$(TARGET).exe.manifest\n//go:generate rm -f resource.syso\npackage main\n' > main_windows.go
 # .syso file can also be done with rsrc tool (https://github.com/akavel/rsrc)
 
 $(TARGET).exe.manifest :
